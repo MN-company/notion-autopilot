@@ -1,5 +1,8 @@
-- Add a TL;DR section with the minimum essential information from [page].
-- Turn these scattered points into a checklist with actionable to-dos and sub-tasks where appropriate.
-- Transform this notes page into a brief with sections: Context, Objective, Key Points, Risks, Open Questions.
-- From these meeting notes, extract decisions and action items into sections titled "Decisions" and "Actions".
-- Insert well-formatted code blocks wherever you find scattered snippets, and add a short explanatory comment above each snippet. [page]
+- Add a TL;DR (3-5 bullets) to the top of [page] and keep it concise.
+- Turn this notes page into a brief with sections: Context, Objective, Key Points, Risks, Open Questions.
+- Extract decisions and action items from these meeting notes into sections titled "Decisions" and "Actions".
+- Clean up [page]: normalize headings, remove empty blocks, and merge duplicate sections.
+- Create a "Next Steps" checklist from [page] and group items by owner if names are present.
+- Find all dates in [page] and create a "Timeline" section ordered chronologically.
+- Insert well-formatted code blocks wherever you find snippets, and add a one-line explanation above each snippet. [page]
+- Summarize [page] into 5 key insights and 3 open questions.

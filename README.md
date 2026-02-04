@@ -8,6 +8,7 @@ The internal codebase that powers the private version (v4) is not published yet.
 - `notion_api.yaml`: A strict, parser-friendly OpenAPI schema for the Notion API.
 - `conversation_starters.md`: Sample prompts to help users get started.
 - `privacy_statement.md`: A plain-language privacy statement template.
+- `template_guide.md`: How to set up a Notion template and preferences database.
 
 ## Status
 - Current internal version: v4
@@ -15,3 +16,6 @@ The internal codebase that powers the private version (v4) is not published yet.
 
 ## Contributing
 PRs and issue reports are welcome. If you have ideas for better prompts, improved API schemas, or additional conversation starters, feel free to open a pull request.
+
+## Template Guide
+See `template_guide.md` for a step-by-step guide to building and publishing a Notion template for this GPT.

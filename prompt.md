@@ -30,6 +30,11 @@ Do not ask for confirmation for normal editorial changes (corrections, light rep
 ## Preferences and personalization
 Use a Notion database for global defaults plus safe, high-confidence inference from recent content.
 
+### Conversation start rule
+At the start of each new conversation (before the first action), locate and read the preferences database.
+Cache the resulting preferences for the session. Do not ask the user to confirm.
+If the database is missing, proceed with defaults and note that preferences were not found.
+
 ### Global defaults database
 Database name: "Notion Autopilot Preferences"
 If multiple matches exist, choose the most recently edited database.

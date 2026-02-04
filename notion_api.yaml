@@ -1,0 +1,453 @@
+openapi: 3.1.0
+info:
+  title: Notion (complete autonomous agent - strict parser friendly)
+  version: "1.0.0"
+servers:
+  - url: https://api.notion.com
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: "Notion integration token or OAuth access token"
+
+  schemas:
+    # ---------- Core requests ----------
+    SearchRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        query:
+          type: string
+          nullable: true
+        filter:
+          type: object
+          additionalProperties: false
+          properties:
+            value:
+              type: string
+              enum: [page, database]
+            property:
+              type: string
+              enum: [object]
+        sort:
+          type: object
+          additionalProperties: false
+          properties:
+            direction:
+              type: string
+              enum: [ascending, descending]
+            timestamp:
+              type: string
+              enum: [last_edited_time]
+        start_cursor:
+          type: string
+        page_size:
+          type: integer
+          minimum: 1
+          maximum: 100
+
+    QueryDatabaseRequest:
+      type: object
+      additionalProperties: true
+      properties:
+        filter:
+          type: object
+          additionalProperties: true
+          properties: {}
+        sorts:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+            properties: {}
+        start_cursor:
+          type: string
+        page_size:
+          type: integer
+          minimum: 1
+          maximum: 100
+
+    CreatePageRequest:
+      type: object
+      additionalProperties: true
+      required: [parent, properties]
+      properties:
+        parent:
+          type: object
+          additionalProperties: true
+          properties:
+            database_id: { type: string }
+            page_id: { type: string }
+        properties:
+          type: object
+          additionalProperties: true
+          properties: {}
+        children:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+            properties: {}
+
+    UpdatePageRequest:
+      type: object
+      additionalProperties: true
+      properties:
+        properties:
+          type: object
+          additionalProperties: true
+          properties: {}
+        archived:
+          type: boolean
+        icon:
+          type: object
+          additionalProperties: true
+          properties: {}
+        cover:
+          type: object
+          additionalProperties: true
+          properties: {}
+
+    # ---------- Blocks: update + append ----------
+    # IMPORTANT: explicit properties avoid "kwargs" misrouting in strict tool runners.
+    UpdateBlockRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        paragraph:
+          type: object
+          additionalProperties: true
+          properties: {}
+        heading_1:
+          type: object
+          additionalProperties: true
+          properties: {}
+        heading_2:
+          type: object
+          additionalProperties: true
+          properties: {}
+        heading_3:
+          type: object
+          additionalProperties: true
+          properties: {}
+        bulleted_list_item:
+          type: object
+          additionalProperties: true
+          properties: {}
+        numbered_list_item:
+          type: object
+          additionalProperties: true
+          properties: {}
+        to_do:
+          type: object
+          additionalProperties: true
+          properties: {}
+        toggle:
+          type: object
+          additionalProperties: true
+          properties: {}
+        quote:
+          type: object
+          additionalProperties: true
+          properties: {}
+        callout:
+          type: object
+          additionalProperties: true
+          properties: {}
+        code:
+          type: object
+          additionalProperties: true
+          properties: {}
+        divider:
+          type: object
+          additionalProperties: true
+          properties: {}
+        table:
+          type: object
+          additionalProperties: true
+          properties: {}
+        table_row:
+          type: object
+          additionalProperties: true
+          properties: {}
+        bookmark:
+          type: object
+          additionalProperties: true
+          properties: {}
+
+    AppendBlockChildrenRequest:
+      type: object
+      additionalProperties: false
+      required: [children]
+      properties:
+        children:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+            properties: {}
+        after:
+          type: string
+
+    # ---------- Comments (optional, but useful) ----------
+    CreateCommentRequest:
+      type: object
+      additionalProperties: true
+      properties: {}
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ---------- Search ----------
+  /v1/search:
+    post:
+      operationId: search
+      summary: Full-text search across the workspace
+      parameters:
+        - name: Notion-Version
+          in: header
+          required: true
+          schema:
+            type: string
+            example: "2022-06-28"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+      responses:
+        "200":
+          description: OK
+
+  # ---------- Database query ----------
+  /v1/databases/{database_id}/query:
+    post:
+      operationId: queryDatabase
+      summary: Query a Notion database
+      parameters:
+        - name: database_id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: Notion-Version
+          in: header
+          required: true
+          schema:
+            type: string
+            example: "2022-06-28"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryDatabaseRequest'
+      responses:
+        "200":
+          description: OK
+
+  # ---------- Pages ----------
+  /v1/pages:
+    post:
+      operationId: createPage
+      summary: Create a page in a database or under a parent page
+      parameters:
+        - name: Notion-Version
+          in: header
+          required: true
+          schema:
+            type: string
+            example: "2022-06-28"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePageRequest'
+      responses:
+        "200":
+          description: OK
+
+  /v1/pages/{page_id}:
+    get:
+      operationId: retrievePage
+      summary: Retrieve a page object
+      parameters:
+        - name: page_id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: Notion-Version
+          in: header
+          required: true
+          schema:
+            type: string
+            example: "2022-06-28"
+      responses:
+        "200":
+          description: OK
+
+    patch:
+      operationId: updatePage
+      summary: Update page properties or archive/unarchive
+      parameters:
+        - name: page_id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: Notion-Version
+          in: header
+          required: true
+          schema:
+            type: string
+            example: "2022-06-28"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePageRequest'
+      responses:
+        "200":
+          description: OK
+
+  # ---------- Blocks ----------
+  /v1/blocks/{block_id}:
+    get:
+      operationId: retrieveBlock
+      summary: Retrieve a block object
+      parameters:
+        - name: block_id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: Notion-Version
+          in: header
+          required: true
+          schema:
+            type: string
+            example: "2022-06-28"
+      responses:
+        "200":
+          description: OK
+
+    patch:
+      operationId: updateBlock
+      summary: Update a block (text/structure). Body must include a block-type key (e.g. paragraph, heading_2, callout).
+      parameters:
+        - name: block_id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: Notion-Version
+          in: header
+          required: true
+          schema:
+            type: string
+            example: "2022-06-28"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBlockRequest'
+      responses:
+        "200":
+          description: OK
+
+    delete:
+      operationId: deleteBlock
+      summary: Archive (trash) a block
+      parameters:
+        - name: block_id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: Notion-Version
+          in: header
+          required: true
+          schema:
+            type: string
+            example: "2022-06-28"
+      responses:
+        "200":
+          description: OK
+
+  /v1/blocks/{block_id}/children:
+    get:
+      operationId: listBlockChildren
+      summary: List children blocks of a block (use page_id as block_id to read page content)
+      parameters:
+        - name: block_id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: start_cursor
+          in: query
+          required: false
+          schema: { type: string }
+        - name: page_size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: Notion-Version
+          in: header
+          required: true
+          schema:
+            type: string
+            example: "2022-06-28"
+      responses:
+        "200":
+          description: OK
+
+    patch:
+      operationId: appendBlockChildren
+      summary: Append children blocks to a block (use after to insert at a position)
+      parameters:
+        - name: block_id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: Notion-Version
+          in: header
+          required: true
+          schema:
+            type: string
+            example: "2022-06-28"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppendBlockChildrenRequest'
+      responses:
+        "200":
+          description: OK
+
+  # ---------- Comments (optional) ----------
+  /v1/comments:
+    post:
+      operationId: createComment
+      summary: Create a comment (optional)
+      parameters:
+        - name: Notion-Version
+          in: header
+          required: true
+          schema:
+            type: string
+            example: "2022-06-28"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCommentRequest'
+      responses:
+        "200":
+          description: OK

@@ -35,6 +35,16 @@ At the start of each new conversation (before the first action), locate and read
 Cache the resulting preferences for the session. Do not ask the user to confirm.
 If the database is missing, proceed with defaults and note that preferences were not found.
 
+### Dynamic configuration (auto-update)
+Also search for a page titled "Autopilot Config" (or "Notion Autopilot Config").
+If found, read it fully and apply its rules as a dynamic overlay for this session.
+Treat these rules as higher priority than global defaults but lower priority than page overrides and user instructions.
+
+If the config page includes a "Preferences Sync" section, upsert those key/value pairs into the preferences database:
+- Set Inferred = false, Confidence = 1, Source = "config".
+- Do not overwrite explicit preferences unless the config was edited more recently.
+- Update Last_seen for each synced key.
+
 ### Global defaults database
 Database name: "Notion Autopilot Preferences"
 If multiple matches exist, choose the most recently edited database.
@@ -61,8 +71,9 @@ Value parsing rules:
 Read order (highest priority first):
 1) User's explicit instruction in the current request.
 2) Page-level overrides (see below).
-3) Global defaults database (Scope = global, Applies_to = all or matching task type).
-4) Inferred preferences (only safe + high confidence; never override explicit values).
+3) Dynamic config rules from the "Autopilot Config" page.
+4) Global defaults database (Scope = global, Applies_to = all or matching task type).
+5) Inferred preferences (only safe + high confidence; never override explicit values).
 
 ### Page-level overrides
 If the target page contains a heading "Autopilot Overrides", read the blocks under that heading
@@ -84,6 +95,24 @@ Suggested inferable signals:
 - callout_usage: avoid callouts if they appear in < 10% of pages.
 - code_blocking: convert snippets to code blocks if code blocks appear in >= 40% of pages.
 - list_style: prefer bulleted lists if bullets appear >= 70% of the time.
+
+## Macro requests and layout planning
+If the user asks for a macro change (redesign, rebuild, refactor, home, dashboard, overhaul, restructure):
+1) Evaluate all available Notion presentation tools and choose the best fit for the content.
+2) Generate 2-3 layout concepts (name + one-line description).
+3) Choose one concept based on preferences (creative_level, layout_style, visual_weight) and observed style signals.
+4) Apply the chosen layout decisively and summarize the changes.
+
+Notion tools to consider (use only block types supported by the API schema):
+- Structure: headings, dividers, sections, toggles.
+- Organization: bulleted/numbered lists, to_do lists, tables.
+- Emphasis: callouts, quotes, code blocks, bookmarks.
+- Navigation: table of contents or links if supported.
+
+Creativity controls:
+- If creative_level is high, use bolder structure and clearer visual separation.
+- If creative_level is low, keep the layout minimal and conservative.
+- If layout_style is "dashboard", surface key sections at the top and group actions below.
 
 ## Failure handling (no authorization requests)
 - If `/search` returns empty: make a second automatic attempt with a shorter query (remove articles/quotes, try main keywords).

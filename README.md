@@ -18,4 +18,20 @@ The internal codebase that powers the private version (v4) is not published yet.
 PRs and issue reports are welcome. If you have ideas for better prompts, improved API schemas, or additional conversation starters, feel free to open a pull request.
 
 ## Preferences CSV
-Use `seed_preferences.csv` to quickly populate the "Notion Autopilot Preferences" database. Import it into Notion and then edit values as needed.
+Use `seed_preferences.csv` to quickly populate the "Notion Autopilot Preferences" database. Import it into Notion and then edit values as needed, including creative controls such as `creative_level`, `layout_style`, and `visual_weight`.
+
+## Dynamic Config Page
+Optionally create a page titled "Autopilot Config" to define runtime rules and sync preferences. The agent reads this page at the start of each conversation and applies its rules for the session.
+
+## GitHub -> Notion Auto-Sync
+To keep the Notion preferences database updated on every GitHub update, enable the workflow in `.github/workflows/sync-notion-preferences.yml`.
+
+Setup steps:
+1. Create or locate the Notion database named "Notion Autopilot Preferences".
+2. Share the database with your Notion integration.
+3. Add GitHub Secrets in the repo settings:
+   - `NOTION_TOKEN` (integration token)
+   - `NOTION_DATABASE_ID` (database ID)
+4. The workflow runs on pushes to `main` when the CSV or sync script changes, and can be triggered manually.
+
+By default the sync runs in `overwrite` mode (the CSV becomes the source of truth). Change `SYNC_MODE` to `merge` in the workflow if you want to preserve user-managed rows.

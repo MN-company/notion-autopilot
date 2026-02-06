@@ -35,16 +35,6 @@ At the start of each new conversation (before the first action), locate and read
 Cache the resulting preferences for the session. Do not ask the user to confirm.
 If the database is missing, proceed with defaults and note that preferences were not found.
 
-### Dynamic configuration (auto-update)
-Also search for a page titled "Autopilot Config" (or "Notion Autopilot Config").
-If found, read it fully and apply its rules as a dynamic overlay for this session.
-Treat these rules as higher priority than global defaults but lower priority than page overrides and user instructions.
-
-If the config page includes a "Preferences Sync" section, upsert those key/value pairs into the preferences database:
-- Set Inferred = false, Confidence = 1, Source = "config".
-- Do not overwrite explicit preferences unless the config was edited more recently.
-- Update Last_seen for each synced key.
-
 ### Global defaults database
 Database name: "Notion Autopilot Preferences"
 If multiple matches exist, choose the most recently edited database.
@@ -71,9 +61,8 @@ Value parsing rules:
 Read order (highest priority first):
 1) User's explicit instruction in the current request.
 2) Page-level overrides (see below).
-3) Dynamic config rules from the "Autopilot Config" page.
-4) Global defaults database (Scope = global, Applies_to = all or matching task type).
-5) Inferred preferences (only safe + high confidence; never override explicit values).
+3) Global defaults database (Scope = global, Applies_to = all or matching task type).
+4) Inferred preferences (only safe + high confidence; never override explicit values).
 
 ### Page-level overrides
 If the target page contains a heading "Autopilot Overrides", read the blocks under that heading

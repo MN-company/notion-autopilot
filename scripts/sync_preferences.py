@@ -6,6 +6,7 @@ import sys
 import datetime
 import urllib.request
 import urllib.error
+import re
 
 NOTION_API_BASE = "https://api.notion.com"
 DEFAULT_NOTION_VERSION = "2022-06-28"
@@ -38,6 +39,17 @@ def request_json(method, path, token, notion_version, body=None):
     except urllib.error.HTTPError as e:
         error_body = e.read().decode("utf-8", errors="ignore")
         raise RuntimeError(f"Notion API error {e.code}: {error_body}")
+
+
+def normalize_notion_id(value):
+    if not value:
+        return value
+    raw = value.strip()
+    # If a full URL is provided, extract the first 32-hex identifier.
+    match = re.search(r"[0-9a-fA-F]{32}", raw)
+    if match:
+        return match.group(0)
+    return raw
 
 
 def parse_bool(value):
@@ -185,10 +197,15 @@ def sync_row(db_id, row, token, notion_version, mode, last_seen):
 
 def main():
     token = env("NOTION_TOKEN", required=True)
-    db_id = env("NOTION_DATABASE_ID", required=True)
+    db_id_raw = env("NOTION_DATABASE_ID", required=True)
     csv_path = env("PREFERENCES_CSV", "seed_preferences.csv")
     notion_version = env("NOTION_VERSION", DEFAULT_NOTION_VERSION)
     mode = env("SYNC_MODE", "overwrite").strip().lower()
+
+    db_id = normalize_notion_id(db_id_raw)
+    if not db_id or len(db_id) < 32:
+        print("NOTION_DATABASE_ID must be a database id or a URL containing one.")
+        sys.exit(1)
 
     if mode not in ("overwrite", "merge"):
         print("SYNC_MODE must be 'overwrite' or 'merge'")

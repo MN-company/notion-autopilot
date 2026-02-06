@@ -31,7 +31,7 @@ Setup steps:
 2. Share the database with your Notion integration.
 3. Add GitHub Secrets in the repo settings:
    - `NOTION_TOKEN` (integration token)
-   - `NOTION_DATABASE_ID` (database ID)
+   - `NOTION_DATABASE_ID` (database ID or full Notion database URL)
 4. The workflow runs on pushes to `main` when the CSV or sync script changes, and can be triggered manually.
 
 By default the sync runs in `overwrite` mode (the CSV becomes the source of truth). Change `SYNC_MODE` to `merge` in the workflow if you want to preserve user-managed rows.

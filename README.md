@@ -1,11 +1,21 @@
-# notion-autopilot
-I created this repo with the scope tu build a GPT community-oriented. I have built others GPT and decides to keep the backbone private but this one, i think that is better to make it open source so you can use the GPT and improveit at the same time.
-I did this choice because I don't use all the thing that Notion offers. I know that there are other possibilities to connect notion to ChatGPT, n8n etc. but this porject is based on my need.
+# Notion Autopilot
+Notion Autopilot is a community-oriented GPT configuration that helps operate Notion via the API. This repo shares the prompt, OpenAPI schema, and starter prompts so you can run and improve the GPT.
 
-Right now the Autopilot is at version 4 because was developed internally and not public, but from the next update (v5 will arrive soon) i will publish all the code.
+The internal codebase that powers the private version (v4) is not published yet. The next release (v5) is planned to open-source the implementation.
 
-## Features
+## What's in this repo
+- `prompt.md`: The full system prompt used by the GPT.
+- `notion_api.yaml`: A strict, parser-friendly OpenAPI schema for the Notion API.
+- `conversation_starters.md`: Sample prompts to help users get started.
+- `privacy_statement.md`: A plain-language privacy statement template.
+- `seed_preferences.csv`: Starter rows for the preferences database.
 
-### [Prompt]()
-### [Code]()
-### [Conversation Starters]()
+## Status
+- Current internal version: v4
+- Next public release: v5 (planned)
+
+## Contributing
+PRs and issue reports are welcome. If you have ideas for better prompts, improved API schemas, or additional conversation starters, feel free to open a pull request.
+
+## Preferences CSV
+Use `seed_preferences.csv` to quickly populate the "Notion Autopilot Preferences" database. Import it into Notion and then edit values as needed.

@@ -2,8 +2,24 @@ openapi: 3.1.0
 info:
   title: Notion (complete autonomous agent - strict parser friendly)
   version: "1.0.0"
+  description: >
+    A strict, parser-friendly OpenAPI schema for the Notion API, tailored for
+    autonomous agents. It focuses on the endpoints and request shapes needed for
+    reliable search, read, and write workflows.
 servers:
   - url: https://api.notion.com
+
+tags:
+  - name: Search
+    description: Workspace-wide search.
+  - name: Databases
+    description: Query database content.
+  - name: Pages
+    description: Create, retrieve, and update pages.
+  - name: Blocks
+    description: Read, update, append, and delete blocks.
+  - name: Comments
+    description: Create comments.
 
 components:
   securitySchemes:
@@ -206,6 +222,8 @@ paths:
     post:
       operationId: search
       summary: Full-text search across the workspace
+      description: Search pages and databases by keyword.
+      tags: [Search]
       parameters:
         - name: Notion-Version
           in: header
@@ -228,6 +246,8 @@ paths:
     post:
       operationId: queryDatabase
       summary: Query a Notion database
+      description: Filter and sort database rows.
+      tags: [Databases]
       parameters:
         - name: database_id
           in: path
@@ -254,6 +274,8 @@ paths:
     post:
       operationId: createPage
       summary: Create a page in a database or under a parent page
+      description: Create a new page in a database or as a child of a page.
+      tags: [Pages]
       parameters:
         - name: Notion-Version
           in: header
@@ -275,6 +297,8 @@ paths:
     get:
       operationId: retrievePage
       summary: Retrieve a page object
+      description: Fetch page metadata and properties.
+      tags: [Pages]
       parameters:
         - name: page_id
           in: path
@@ -293,6 +317,8 @@ paths:
     patch:
       operationId: updatePage
       summary: Update page properties or archive/unarchive
+      description: Update properties, icon, cover, or archived state.
+      tags: [Pages]
       parameters:
         - name: page_id
           in: path
@@ -319,6 +345,8 @@ paths:
     get:
       operationId: retrieveBlock
       summary: Retrieve a block object
+      description: Fetch a block by ID.
+      tags: [Blocks]
       parameters:
         - name: block_id
           in: path
@@ -337,6 +365,8 @@ paths:
     patch:
       operationId: updateBlock
       summary: Update a block (text/structure). Body must include a block-type key (e.g. paragraph, heading_2, callout).
+      description: Update content or structure for a single block.
+      tags: [Blocks]
       parameters:
         - name: block_id
           in: path
@@ -361,6 +391,8 @@ paths:
     delete:
       operationId: deleteBlock
       summary: Archive (trash) a block
+      description: Archive a block (soft-delete).
+      tags: [Blocks]
       parameters:
         - name: block_id
           in: path
@@ -380,6 +412,8 @@ paths:
     get:
       operationId: listBlockChildren
       summary: List children blocks of a block (use page_id as block_id to read page content)
+      description: Paginate through child blocks for a block or page.
+      tags: [Blocks]
       parameters:
         - name: block_id
           in: path
@@ -409,6 +443,8 @@ paths:
     patch:
       operationId: appendBlockChildren
       summary: Append children blocks to a block (use after to insert at a position)
+      description: Append new child blocks, optionally after a specific block.
+      tags: [Blocks]
       parameters:
         - name: block_id
           in: path
@@ -435,6 +471,8 @@ paths:
     post:
       operationId: createComment
       summary: Create a comment (optional)
+      description: Create a comment on a page or block.
+      tags: [Comments]
       parameters:
         - name: Notion-Version
           in: header

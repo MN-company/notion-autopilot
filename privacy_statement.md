@@ -1,17 +1,44 @@
-# Privacy Statement
-This project provides configuration files for a GPT-style Notion agent. It does not include a hosted backend. When you deploy or run it, the data handling depends on your environment.
+# Privacy Policy (Notion Autopilot GPT)
+Last updated: 2026-02-14
+
+This GPT helps you edit and organize your Notion content, and (optionally) upload media to Google Drive when Notion file limits prevent direct uploads. It is designed to use the minimum access required and avoid collecting personal identity data.
 
 ## What data is accessed
-- The agent accesses Notion content only after you connect a Notion integration and explicitly share pages or databases with it.
-- It uses that content solely to fulfill the task you requested.
-- If you connect Google Drive, the agent can access files permitted by the OAuth scopes you grant (for example, files created or selected by the app).
-- If you enable OpenID scopes (openid/email/profile), the agent may read basic profile data such as name and email for personalization or attribution.
+- Notion content you choose to make available to the Notion integration (pages, databases, and blocks the integration can access).
+- Files you explicitly provide to the GPT (for example, slide decks or images), only for the purpose of extracting and inserting images into Notion.
+- If you connect Google Drive: the specific files and folders created or uploaded by the GPT as part of the fallback flow.
 
-## What we do not do
-- We do not sell or rent user data.
-- We do not attempt to access content that has not been shared with the integration.
-- We do not request or store your Google password.
-- We do not store user profile data in Notion unless you explicitly ask.
+## What the GPT does with your data
+- Reads Notion content to understand your request and the page(s) to edit.
+- Writes updates back to Notion (blocks/pages) to complete the task.
+- When needed, converts slides into images and inserts those images into Notion.
+- If Notion upload fails due to workspace limits, uploads the image to a dedicated Drive folder (for example, \"Notion Autopilot Media\") and inserts a link to that externally hosted image in Notion.
 
-## Your responsibilities when self-hosting
-If you run this yourself, you control retention, logging, and access controls. Review your hosting provider and Notion integration settings to align with your privacy requirements.
+## What the GPT does not do
+- It does not request Google OpenID scopes (`openid`, `email`, `profile`) and does not fetch your name or email from Google.
+- It does not attempt to access Notion content that is not shared with the integration.
+- It does not sell or rent your data.
+
+## Where data goes (third parties)
+To perform tasks, the GPT may send data to:
+- Notion (to read and edit your pages/databases).
+- Google Drive (only if you connect it and only for the fallback upload flow).
+- OpenAI/ChatGPT (the platform running the GPT). Your use of the GPT is also governed by OpenAI's own policies.
+
+## Storage and retention
+- This project does not operate its own external server for storing your data.
+- Content is stored in Notion and/or Google Drive as part of the outputs you requested (for example, inserted images or updated pages).
+- Any additional retention (for example, platform logs) is determined by the providers above.
+
+## Your choices and controls
+- You can revoke access at any time by disconnecting the Notion integration and/or removing the Google Drive connection.
+- You can delete files uploaded to Google Drive and remove external image links from Notion.
+- You control which Notion pages/databases are shared with the integration.
+
+## Security
+- Use a dedicated Notion integration and limit what it can access.
+- If you enable the Google Drive fallback, prefer the least-privilege scope (`drive.file`).
+
+## Contact
+For privacy questions or deletion requests related to this GPT configuration, contact the repository owner/maintainer.
+

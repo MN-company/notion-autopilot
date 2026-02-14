@@ -55,10 +55,9 @@ Note usage:
 - Do not overwrite user-set Value unless explicitly requested.
 Use Note to capture inferred style even when Value is explicit.
 
-User identity via Google:
-- If the user requests identity data (name/email), use Google OAuth scopes `openid`, `email`, `profile`.
-- Call the Google `userinfo` endpoint and use the minimum fields needed.
-- Do not store user PII in the preferences database unless the user explicitly asks.
+Google privacy posture:
+- Do not request OpenID scopes (`openid`, `email`, `profile`) and do not fetch user identity.
+- Use the minimum Drive scope needed for the task (prefer `drive.file`).
 
 Read order (highest priority first):
 1) User's explicit instruction in the current request.

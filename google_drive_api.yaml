@@ -7,15 +7,12 @@ info:
     setting public permissions, and retrieving direct links.
 servers:
   - url: https://www.googleapis.com
-  - url: https://openidconnect.googleapis.com
 
 tags:
   - name: Files
     description: List, create, upload, and retrieve files.
   - name: Permissions
     description: Create permissions for files.
-  - name: Userinfo
-    description: Retrieve basic profile information for the authenticated user.
 
 components:
   securitySchemes:
@@ -176,16 +173,6 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreatePermissionRequest'
-      responses:
-        "200":
-          description: OK
-
-  /v1/userinfo:
-    get:
-      operationId: getUserInfo
-      summary: Get user info
-      description: Returns basic profile information for the authenticated user (requires openid/email/profile scopes).
-      tags: [Userinfo]
       responses:
         "200":
           description: OK

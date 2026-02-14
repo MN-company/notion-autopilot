@@ -1,0 +1,81 @@
+openapi: 3.1.0
+info:
+  title: Notion Autopilot Media Bridge
+  version: "1.0.0"
+  description: >
+    Middleware API for GPT Actions that need to upload files to services that
+    require raw bytes (Notion file uploads, Google Drive uploads).
+servers:
+  - url: https://YOUR_MEDIA_BRIDGE_HOST
+
+paths:
+  /health:
+    get:
+      operationId: health
+      summary: Health check
+      responses:
+        "200":
+          description: OK
+
+  /v1/notion/file_uploads:
+    post:
+      operationId: notionFileUploads
+      summary: Upload files to Notion
+      description: >
+        Expects `openaiFileIdRefs` containing up to 10 file references from the conversation.
+        At runtime, OpenAI populates `openaiFileIdRefs` with objects containing `name`, `mime_type`, and `download_link`.
+        This endpoint uploads each file to Notion and returns a `file_upload_id` for each.
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          schema:
+            type: string
+          description: >
+            Bearer token for Notion. If omitted, the service must be configured with NOTION_TOKEN.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                openaiFileIdRefs:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: OK
+
+  /v1/drive/upload_public:
+    post:
+      operationId: driveUploadPublic
+      summary: Upload files to Google Drive and make public
+      description: >
+        Requires Google OAuth access token in `Authorization: Bearer ...` header.
+        Expects `openaiFileIdRefs` containing up to 10 file references from the conversation.
+      parameters:
+        - name: Authorization
+          in: header
+          required: true
+          schema:
+            type: string
+          description: Bearer token for Google Drive (OAuth access token).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                folder_name:
+                  type: string
+                  description: Folder name to create/find for uploads.
+                openaiFileIdRefs:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: OK

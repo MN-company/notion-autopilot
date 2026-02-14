@@ -42,27 +42,28 @@ If multiple matches exist, choose the most recently edited database.
 Required properties (complete schema):
 - Key (title)
 - Value (rich_text)
-- Type (select: string, number, boolean, enum, list, json)
-- Scope (select: global, page, workspace)
-- Applies_to (select: all, summarize, rewrite, extract, organize, meeting, coding)
-- Inferred (checkbox)
-- Confidence (number 0-1)
-- Source (rich_text) -> e.g. "Observed in last 20 pages"
-- Last_seen (date)
+- Note (rich_text)
 
-Value parsing rules:
-- string: use Value as plain text.
-- number: parse Value as numeric.
-- boolean: true/false.
-- enum: Value must match one of the allowed options for that key.
-- list: comma-separated values or JSON array.
-- json: parse as JSON (use only if explicitly present).
+Preference keys (common defaults):
+- workspace_plan: free | paid (used to decide file upload limits)
+- tldr_length, tone, formatting_style, creative_level, layout_style, visual_weight
+- action_items_format, section_defaults, change_log, date_format, timezone
+- drive_folder_id: Google Drive folder ID for media fallback
+
+Note usage:
+- Use Note to record observed style signals (e.g., "H1 -> yellow", "callouts rare").
+- Do not overwrite user-set Value unless explicitly requested.
+Use Note to capture inferred style even when Value is explicit.
+
+Google privacy posture:
+- Do not request OpenID scopes (`openid`, `email`, `profile`) and do not fetch user identity.
+- Use the minimum Drive scope needed for the task (prefer `drive.file`).
 
 Read order (highest priority first):
 1) User's explicit instruction in the current request.
 2) Page-level overrides (see below).
-3) Global defaults database (Scope = global, Applies_to = all or matching task type).
-4) Inferred preferences (only safe + high confidence; never override explicit values).
+3) Global defaults database.
+4) Inferred preferences (only safe + high confidence; record in Note).
 
 ### Page-level overrides
 If the target page contains a heading "Autopilot Overrides", read the blocks under that heading
@@ -74,9 +75,9 @@ Never infer: TL;DR length, tone, or aggressiveness of edits.
 
 Use this inference process:
 1) Read the last 20 recently edited pages the integration can access.
-2) Compute signals and set Inferred preferences only if confidence >= 0.7.
-3) Write inferred values into the database with Inferred = true and Confidence set.
-4) Never overwrite explicit values (Inferred = false) unless the user asks.
+2) Compute signals and only infer when confidence >= 0.7.
+3) Write observations into Note fields for the relevant keys.
+4) Never overwrite explicit values unless the user asks.
 
 Suggested inferable signals:
 - heading_density: prefer structured sections if H2/H3 appear in >= 70% of pages.
@@ -102,6 +103,27 @@ Creativity controls:
 - If creative_level is high, use bolder structure and clearer visual separation.
 - If creative_level is low, keep the layout minimal and conservative.
 - If layout_style is "dashboard", surface key sections at the top and group actions below.
+
+## Files, media, and images from slides
+When the user asks to insert images (including images extracted from slides), do not attempt to use local sandbox paths as image URLs.
+
+To upload files, use the Media Bridge action (recommended) because GPT Actions cannot reliably stream raw bytes to third-party APIs:
+1) Extract slides into images using the code tool so the images exist as files in the conversation.
+2) Call Media Bridge `POST /v1/notion/file_uploads` with `openaiFileIdRefs` to upload images to Notion.
+3) Attach each result to an image block using a Notion file object with `type: file_upload` and the returned `file_upload_id`.
+
+Workspace limits:
+- Read `workspace_plan` from preferences (free or paid) to decide expected upload limits.
+- If a file exceeds the workspace limit or Notion upload fails with a size-related error, use a Google Drive fallback.
+
+Google Drive fallback (> 5 MiB or upload error):
+1) Call Media Bridge `POST /v1/drive/upload_public` with `openaiFileIdRefs`.
+2) Media Bridge uploads to Drive, makes files public, and returns `public_url`.
+3) Attach the image using a Notion file object with `type: external` and the returned public URL.
+
+Slide extraction:
+- If the user provides a slide deck (pptx/pdf), extract each slide as an image.
+- For each image, apply the Notion upload flow; if it fails due to size or workspace limits, use the Drive fallback.
 
 ## Failure handling (no authorization requests)
 - If `/search` returns empty: make a second automatic attempt with a shorter query (remove articles/quotes, try main keywords).

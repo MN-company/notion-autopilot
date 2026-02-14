@@ -13,6 +13,8 @@ This small middleware service:
 ## Endpoints
 - `POST /v1/notion/file_uploads` uploads files to Notion and returns `file_upload_id`s.
 - `POST /v1/drive/upload_public` uploads files to Drive, makes them public, and returns public URLs.
+- `GET /oauth/notion/authorize` OAuth authorize proxy for Notion (same-domain URL for GPT Actions).
+- `POST /oauth/notion/token` OAuth token proxy for Notion (same-domain URL for GPT Actions).
 
 ## Configuration
 Environment variables:
@@ -24,6 +26,8 @@ Environment variables:
 - `MAX_SLIDE_PAGES` (optional): max pages/slides rendered from a deck (default: 80).
 - `SLIDE_RENDER_DPI` (optional): PNG render DPI for slide images (default: 150).
 - `PDF_EXTRACT_MODE` (optional): `diagram` (default) to crop likely diagram regions, or `page` to export full pages only.
+- `NOTION_OAUTH_AUTHORIZE_URL` (optional): defaults to `https://api.notion.com/v1/oauth/authorize`
+- `NOTION_OAUTH_TOKEN_URL` (optional): defaults to `https://api.notion.com/v1/oauth/token`
 
 Google Drive:
 - The service expects a Google OAuth access token in the request `Authorization: Bearer ...` header.
@@ -41,3 +45,15 @@ uvicorn app:app --reload --port 8000
 Any HTTPS host works (Cloud Run, Fly.io, Render, etc.). The GPT Action requires a public HTTPS URL with a valid certificate.
 
 If you want automatic `ppt/pptx` conversion on the bridge runtime, install LibreOffice in the container image (`soffice` must be available on PATH).
+
+## Multi-user Notion OAuth setup (recommended for GPT Store)
+Use this when each user must connect their own Notion workspace.
+
+1. In Notion integrations, create a public OAuth integration and copy `client_id` + `client_secret`.
+2. In GPT Actions, set Authentication to OAuth and configure:
+   - Authorization URL: `https://<YOUR_RUN_APP>/oauth/notion/authorize`
+   - Token URL: `https://<YOUR_RUN_APP>/oauth/notion/token`
+   - Scope: leave empty (Notion does not use OAuth scopes in the same way as Google Drive).
+3. In Notion integration settings, add the redirect URI shown by GPT Actions.
+4. Do not set `NOTION_TOKEN` on Cloud Run for multi-user mode.
+5. The bridge will use each user's bearer token received from GPT Actions.

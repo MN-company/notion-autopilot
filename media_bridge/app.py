@@ -6,14 +6,15 @@ import shutil
 import subprocess
 import tempfile
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 from pathlib import Path
 
 import cv2
 import httpx
 import fitz  # PyMuPDF
 import numpy as np
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request, Response
+from fastapi.responses import RedirectResponse
 
 app = FastAPI(title="Notion Autopilot Media Bridge", version="1.0.0")
 
@@ -42,6 +43,8 @@ MAX_DOWNLOAD_BYTES = int(_env("MAX_DOWNLOAD_BYTES", str(30 * 1024 * 1024)) or st
 MAX_SLIDE_PAGES = int(_env("MAX_SLIDE_PAGES", "80") or "80")
 SLIDE_RENDER_DPI = int(_env("SLIDE_RENDER_DPI", "150") or "150")
 PDF_EXTRACT_MODE = (_env("PDF_EXTRACT_MODE", "diagram") or "diagram").strip().lower()
+NOTION_OAUTH_AUTHORIZE_URL = _env("NOTION_OAUTH_AUTHORIZE_URL", "https://api.notion.com/v1/oauth/authorize")
+NOTION_OAUTH_TOKEN_URL = _env("NOTION_OAUTH_TOKEN_URL", "https://api.notion.com/v1/oauth/token")
 
 
 def _validate_download_link(url: str) -> None:
@@ -366,6 +369,38 @@ def _openai_files_from_body(body: dict[str, Any]) -> list[dict[str, Any]]:
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/oauth/notion/authorize")
+async def oauth_notion_authorize(request: Request) -> RedirectResponse:
+    params = dict(request.query_params)
+    params.setdefault("owner", "user")
+    params.setdefault("response_type", "code")
+    redirect_to = f"{NOTION_OAUTH_AUTHORIZE_URL}?{urlencode(params)}"
+    return RedirectResponse(url=redirect_to, status_code=302)
+
+
+@app.post("/oauth/notion/token")
+async def oauth_notion_token(request: Request) -> Response:
+    body = await request.body()
+    content_type = request.headers.get("content-type", "application/json")
+    forward_headers = {"Content-Type": content_type}
+    auth_header = request.headers.get("authorization")
+    if auth_header:
+        forward_headers["Authorization"] = auth_header
+
+    async with httpx.AsyncClient(timeout=45) as client:
+        token_resp = await client.post(
+            NOTION_OAUTH_TOKEN_URL,
+            headers=forward_headers,
+            content=body,
+        )
+
+    return Response(
+        content=token_resp.content,
+        status_code=token_resp.status_code,
+        media_type=token_resp.headers.get("content-type", "application/json"),
+    )
 
 
 @app.post("/v1/notion/file_uploads")

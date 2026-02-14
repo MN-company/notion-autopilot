@@ -5,6 +5,8 @@ info:
   description: >
     Middleware API for GPT Actions that need to upload files to services that
     require raw bytes (Notion file uploads, Google Drive uploads).
+    For multi-user Notion OAuth in GPT Actions, use same-domain auth URLs:
+    `/oauth/notion/authorize` and `/oauth/notion/token`.
 servers:
   - url: https://YOUR_MEDIA_BRIDGE_HOST
 

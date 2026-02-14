@@ -90,6 +90,11 @@ def _openai_files_from_body(body: dict[str, Any]) -> list[dict[str, Any]]:
     refs = body.get("openaiFileIdRefs") or []
     if not isinstance(refs, list):
         raise HTTPException(status_code=400, detail="openaiFileIdRefs must be an array.")
+    if len(refs) == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="No files received. Attach at least one file in chat and call the action with openaiFileIdRefs.",
+        )
     # At runtime, OpenAI populates this with objects (name, id, mime_type, download_link).
     # In the schema it's typed as strings, so accept both.
     normalized: list[dict[str, Any]] = []

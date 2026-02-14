@@ -15,8 +15,10 @@ components:
       properties:
         openaiFileIdRefs:
           type: array
+          minItems: 1
           items:
             type: string
+          description: Attach files in chat; Action runtime fills this automatically.
       required:
         - openaiFileIdRefs
     DriveUploadRequest:
@@ -27,8 +29,10 @@ components:
           description: Folder name for uploaded files.
         openaiFileIdRefs:
           type: array
+          minItems: 1
           items:
             type: string
+          description: Attach files in chat; Action runtime fills this automatically.
       required:
         - openaiFileIdRefs
   securitySchemes:

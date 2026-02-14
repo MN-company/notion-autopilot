@@ -8,6 +8,13 @@ info:
 servers:
   - url: https://YOUR_MEDIA_BRIDGE_HOST
 
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: OAuth 2.0 access token
+
 paths:
   /health:
     get:
@@ -25,14 +32,7 @@ paths:
         Expects `openaiFileIdRefs` containing up to 10 file references from the conversation.
         At runtime, OpenAI populates `openaiFileIdRefs` with objects containing `name`, `mime_type`, and `download_link`.
         This endpoint uploads each file to Notion and returns a `file_upload_id` for each.
-      parameters:
-        - name: Authorization
-          in: header
-          required: false
-          schema:
-            type: string
-          description: >
-            Bearer token for Notion. If omitted, the service must be configured with NOTION_TOKEN.
+        If the service has NOTION_TOKEN set, no request auth is required for this endpoint.
       requestBody:
         required: true
         content:
@@ -53,15 +53,10 @@ paths:
       operationId: driveUploadPublic
       summary: Upload files to Google Drive and make public
       description: >
-        Requires Google OAuth access token in `Authorization: Bearer ...` header.
+        Requires an OAuth access token sent by the Action runtime as `Authorization: Bearer ...`.
         Expects `openaiFileIdRefs` containing up to 10 file references from the conversation.
-      parameters:
-        - name: Authorization
-          in: header
-          required: true
-          schema:
-            type: string
-          description: Bearer token for Google Drive (OAuth access token).
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:

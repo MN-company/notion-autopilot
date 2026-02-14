@@ -72,13 +72,14 @@ def _extract_bearer(authorization: str | None) -> str | None:
 
 
 def _notion_token_from_request(authorization: str | None) -> str:
-    # Prefer per-user token via Authorization header (works with OAuth-configured GPT Actions).
+    # Prefer server-configured integration token for stable single-workspace deployments.
+    # This avoids accidentally forwarding unrelated bearer tokens (for example Google OAuth tokens).
+    if NOTION_TOKEN:
+        return NOTION_TOKEN
+    # Fallback to per-request bearer token when NOTION_TOKEN is not configured.
     token = _extract_bearer(authorization)
     if token:
         return token
-    # Fallback to server-configured integration token (single workspace deployments).
-    if NOTION_TOKEN:
-        return NOTION_TOKEN
     raise HTTPException(
         status_code=401,
         detail="Missing Notion token. Provide Authorization: Bearer <notion_token> or configure NOTION_TOKEN on the service.",

@@ -7,12 +7,15 @@ info:
     setting public permissions, and retrieving direct links.
 servers:
   - url: https://www.googleapis.com
+  - url: https://openidconnect.googleapis.com
 
 tags:
   - name: Files
     description: List, create, upload, and retrieve files.
   - name: Permissions
     description: Create permissions for files.
+  - name: Userinfo
+    description: Retrieve basic profile information for the authenticated user.
 
 components:
   securitySchemes:
@@ -20,6 +23,29 @@ components:
       type: http
       scheme: bearer
       bearerFormat: "OAuth 2.0 access token"
+  schemas:
+    CreateFileRequest:
+      type: object
+      additionalProperties: true
+      properties:
+        name:
+          type: string
+        parents:
+          type: array
+          items:
+            type: string
+        mimeType:
+          type: string
+    CreatePermissionRequest:
+      type: object
+      additionalProperties: true
+      properties:
+        type:
+          type: string
+          enum: [user, group, domain, anyone]
+        role:
+          type: string
+          enum: [owner, organizer, fileOrganizer, writer, commenter, reader]
 
 security:
   - bearerAuth: []
@@ -67,17 +93,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              additionalProperties: true
-              properties:
-                name:
-                  type: string
-                parents:
-                  type: array
-                  items:
-                    type: string
-                mimeType:
-                  type: string
+              $ref: '#/components/schemas/CreateFileRequest'
       responses:
         "200":
           description: OK
@@ -159,15 +175,17 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              additionalProperties: true
-              properties:
-                type:
-                  type: string
-                  enum: [user, group, domain, anyone]
-                role:
-                  type: string
-                  enum: [owner, organizer, fileOrganizer, writer, commenter, reader]
+              $ref: '#/components/schemas/CreatePermissionRequest'
+      responses:
+        "200":
+          description: OK
+
+  /v1/userinfo:
+    get:
+      operationId: getUserInfo
+      summary: Get user info
+      description: Returns basic profile information for the authenticated user (requires openid/email/profile scopes).
+      tags: [Userinfo]
       responses:
         "200":
           description: OK

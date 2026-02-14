@@ -1,34 +1,41 @@
 # Notion Autopilot
-Notion Autopilot is a community-oriented GPT configuration that helps operate Notion via the API. This repo shares the prompt, OpenAPI schema, and starter prompts so you can run and improve the GPT.
+Notion Autopilot is a GPT configuration for people who live in Notion and want an agent that actually does the work: find the right page, read it fully, restructure it, and ship clean edits with minimal back-and-forth.
 
-The internal codebase that powers the private version (v4) is not published yet. The next release (v5) is planned to open-source the implementation.
+The goal is simple: fewer "where is the page?" questions, more finished pages.
+
+## Highlights
+- Attempt-first, ask-last behavior: it searches, picks the right page, and executes.
+- Macro redesigns: when you say "redo my home/dashboard", it proposes layouts and applies one decisively.
+- Style-aware editing: a lightweight preferences database plus a `Note` field for observed style (for example, "H1 -> yellow").
+- Slide-to-Notion: extract slides to images and insert them into Notion.
+- Media that just works: direct Notion uploads when possible, Google Drive external fallback when Notion limits block uploads.
 
 ## What's in this repo
 - `prompt.md`: The full system prompt used by the GPT.
 - `notion_api.yaml`: A strict, parser-friendly OpenAPI schema for the Notion API.
 - `google_drive_api.yaml`: Minimal Google Drive API schema for media fallback uploads.
 - `conversation_starters.md`: Sample prompts to help users get started.
-- `privacy_statement.md`: A plain-language privacy statement template.
+- `privacy_statement.md`: Privacy policy aligned with the prompt and schemas.
 - `seed_preferences.csv`: Starter rows for the preferences database.
 
 ## Status
-- Current internal version: v4
-- Next public release: v5 (planned)
+- Current internal version (code): v4 (not published)
+- V5 focus (this repo): prompt + schemas + preferences model
+
+## Quickstart
+- Create a Notion integration and share the pages/databases you want the agent to access.
+- Create a database named "Notion Autopilot Preferences" with properties: `Key` (title), `Value` (rich_text), `Note` (rich_text).
+- Import `seed_preferences.csv` into that database and set `workspace_plan` to `free` or `paid`.
+- (Optional) Configure a Google Drive Action using `google_drive_api.yaml` so the agent can upload images when Notion blocks large files.
 
 ## Contributing
 PRs and issue reports are welcome. If you have ideas for better prompts, improved API schemas, or additional conversation starters, feel free to open a pull request.
 
 ## Preferences CSV
-Use `seed_preferences.csv` to quickly populate the "Notion Autopilot Preferences" database. Import it into Notion and then edit values as needed, including creative controls such as `creative_level`, `layout_style`, and `visual_weight`.
-Database schema (simplified):
-- Key (title)
-- Value (rich_text)
-- Note (rich_text) -> used by the GPT to record observed style signals (e.g., "H1 -> yellow").
-
-Include `workspace_plan` with value `free` or `paid` so the agent can choose the correct file upload strategy.
+Use `seed_preferences.csv` to quickly populate the preferences database, then tweak values to match your workflow. The `Note` field is meant for the GPT to record observed style signals (for example: "H1 -> yellow", "callouts rare").
 
 ## Google Drive fallback
-For images that exceed Notion workspace limits, the prompt uses Google Drive as a fallback:
+When images exceed Notion workspace limits (common on free workspaces), the prompt uses Google Drive as a fallback:
 - Upload to a dedicated folder named "Notion Autopilot Media".
 - Create a public permission and attach the image as an external URL in Notion.
 

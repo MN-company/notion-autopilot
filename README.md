@@ -19,6 +19,9 @@ PRs and issue reports are welcome. If you have ideas for better prompts, improve
 
 ## Preferences CSV
 Use `seed_preferences.csv` to quickly populate the "Notion Autopilot Preferences" database. Import it into Notion and then edit values as needed, including creative controls such as `creative_level`, `layout_style`, and `visual_weight`.
+Database schema (simplified):
+- Key (title)
+- Value (rich_text)
+- Note (rich_text) -> used by the GPT to record observed style signals (e.g., "H1 -> yellow").
 
-## Dynamic Config Page
-Optionally create a page titled "Autopilot Config" to define runtime rules and sync preferences. The agent reads this page at the start of each conversation and applies its rules for the session.
+Include `workspace_plan` with value `free` or `paid` so the agent can choose the correct file upload strategy.

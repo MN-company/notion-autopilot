@@ -18,6 +18,8 @@ tags:
     description: Create, retrieve, and update pages.
   - name: Blocks
     description: Read, update, append, and delete blocks.
+  - name: File Uploads
+    description: Create, send, and complete file uploads.
   - name: Comments
     description: Create comments.
 
@@ -192,6 +194,38 @@ components:
           type: object
           additionalProperties: true
           properties: {}
+        image:
+          type: object
+          additionalProperties: true
+          properties: {}
+        file:
+          type: object
+          additionalProperties: true
+          properties: {}
+
+    # ---------- File uploads ----------
+    CreateFileUploadRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        mode:
+          type: string
+          enum: [single_part, multi_part, external_url]
+        filename:
+          type: string
+        content_type:
+          type: string
+        number_of_parts:
+          type: integer
+          minimum: 1
+          maximum: 10000
+        external_url:
+          type: string
+
+    CompleteFileUploadRequest:
+      type: object
+      additionalProperties: false
+      properties: {}
 
     AppendBlockChildrenRequest:
       type: object
@@ -486,6 +520,130 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateCommentRequest'
+      responses:
+        "200":
+          description: OK
+
+  # ---------- File uploads ----------
+  /v1/file_uploads:
+    post:
+      operationId: createFileUpload
+      summary: Create a file upload
+      description: Create a file upload object to begin the upload lifecycle.
+      tags: [File Uploads]
+      parameters:
+        - name: Notion-Version
+          in: header
+          required: true
+          schema:
+            type: string
+            example: "2025-09-03"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFileUploadRequest'
+      responses:
+        "200":
+          description: OK
+
+    get:
+      operationId: listFileUploads
+      summary: List file uploads
+      description: List file upload objects.
+      tags: [File Uploads]
+      parameters:
+        - name: Notion-Version
+          in: header
+          required: true
+          schema:
+            type: string
+            example: "2025-09-03"
+      responses:
+        "200":
+          description: OK
+
+  /v1/file_uploads/{file_upload_id}:
+    get:
+      operationId: retrieveFileUpload
+      summary: Retrieve a file upload
+      description: Retrieve a file upload object by ID.
+      tags: [File Uploads]
+      parameters:
+        - name: file_upload_id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: Notion-Version
+          in: header
+          required: true
+          schema:
+            type: string
+            example: "2025-09-03"
+      responses:
+        "200":
+          description: OK
+
+  /v1/file_uploads/{file_upload_id}/send:
+    post:
+      operationId: sendFileUpload
+      summary: Send a file upload
+      description: Send file bytes using multipart/form-data.
+      tags: [File Uploads]
+      parameters:
+        - name: file_upload_id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: Notion-Version
+          in: header
+          required: true
+          schema:
+            type: string
+            example: "2025-09-03"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                part_number:
+                  type: integer
+                  minimum: 1
+                  maximum: 1000
+              required: [file]
+      responses:
+        "200":
+          description: OK
+
+  /v1/file_uploads/{file_upload_id}/complete:
+    post:
+      operationId: completeFileUpload
+      summary: Complete a file upload
+      description: Finalize a multi-part file upload after all parts are sent.
+      tags: [File Uploads]
+      parameters:
+        - name: file_upload_id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: Notion-Version
+          in: header
+          required: true
+          schema:
+            type: string
+            example: "2025-09-03"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompleteFileUploadRequest'
       responses:
         "200":
           description: OK

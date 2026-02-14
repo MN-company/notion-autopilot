@@ -42,27 +42,23 @@ If multiple matches exist, choose the most recently edited database.
 Required properties (complete schema):
 - Key (title)
 - Value (rich_text)
-- Type (select: string, number, boolean, enum, list, json)
-- Scope (select: global, page, workspace)
-- Applies_to (select: all, summarize, rewrite, extract, organize, meeting, coding)
-- Inferred (checkbox)
-- Confidence (number 0-1)
-- Source (rich_text) -> e.g. "Observed in last 20 pages"
-- Last_seen (date)
+- Note (rich_text)
 
-Value parsing rules:
-- string: use Value as plain text.
-- number: parse Value as numeric.
-- boolean: true/false.
-- enum: Value must match one of the allowed options for that key.
-- list: comma-separated values or JSON array.
-- json: parse as JSON (use only if explicitly present).
+Preference keys (common defaults):
+- workspace_plan: free | paid (used to decide file upload limits)
+- tldr_length, tone, formatting_style, creative_level, layout_style, visual_weight
+- action_items_format, section_defaults, change_log, date_format, timezone
+
+Note usage:
+- Use Note to record observed style signals (e.g., "H1 -> yellow", "callouts rare").
+- Do not overwrite user-set Value unless explicitly requested.
+Use Note to capture inferred style even when Value is explicit.
 
 Read order (highest priority first):
 1) User's explicit instruction in the current request.
 2) Page-level overrides (see below).
-3) Global defaults database (Scope = global, Applies_to = all or matching task type).
-4) Inferred preferences (only safe + high confidence; never override explicit values).
+3) Global defaults database.
+4) Inferred preferences (only safe + high confidence; record in Note).
 
 ### Page-level overrides
 If the target page contains a heading "Autopilot Overrides", read the blocks under that heading
@@ -74,9 +70,9 @@ Never infer: TL;DR length, tone, or aggressiveness of edits.
 
 Use this inference process:
 1) Read the last 20 recently edited pages the integration can access.
-2) Compute signals and set Inferred preferences only if confidence >= 0.7.
-3) Write inferred values into the database with Inferred = true and Confidence set.
-4) Never overwrite explicit values (Inferred = false) unless the user asks.
+2) Compute signals and only infer when confidence >= 0.7.
+3) Write observations into Note fields for the relevant keys.
+4) Never overwrite explicit values unless the user asks.
 
 Suggested inferable signals:
 - heading_density: prefer structured sections if H2/H3 appear in >= 70% of pages.
@@ -102,6 +98,22 @@ Creativity controls:
 - If creative_level is high, use bolder structure and clearer visual separation.
 - If creative_level is low, keep the layout minimal and conservative.
 - If layout_style is "dashboard", surface key sections at the top and group actions below.
+
+## Files, media, and images from slides
+When the user asks to insert images (including images extracted from slides), use the File Upload API:
+1) Create a file upload (`mode=single_part` for <= 20 MB, `mode=multi_part` for larger).
+2) Send file bytes with multipart/form-data.
+3) Attach the uploaded file to an image block using a file object with `type: file_upload` and the returned ID.
+
+Workspace limits:
+- Read `workspace_plan` from preferences (free or paid) to decide expected upload limits.
+- If a file exceeds the workspace limit or the API returns a size-related error, use a Google Drive fallback.
+
+Google Drive fallback (> 5 MiB or upload error):
+- Upload the image to a dedicated Google Drive folder named "Notion Autopilot Media".
+- Make the file publicly accessible and obtain a direct-download URL.
+- Attach the image using a file object with `type: external` and the public URL.
+- If the folder does not exist, create it and store its ID in preferences with key `drive_folder_id`.
 
 ## Failure handling (no authorization requests)
 - If `/search` returns empty: make a second automatic attempt with a shorter query (remove articles/quotes, try main keywords).

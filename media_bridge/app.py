@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException
@@ -20,17 +21,44 @@ def _env(name: str, default: str | None = None, *, required: bool = False) -> st
 
 NOTION_TOKEN = _env("NOTION_TOKEN", required=False)
 NOTION_VERSION = _env("NOTION_VERSION", "2022-06-28") or "2022-06-28"
+ALLOWED_DOWNLOAD_HOSTS = {
+    h.strip().lower()
+    for h in (_env("ALLOWED_DOWNLOAD_HOSTS", "files.openai.com,files.oaiusercontent.com,files.openaiusercontent.com") or "")
+    .split(",")
+    if h.strip()
+}
+MAX_DOWNLOAD_BYTES = int(_env("MAX_DOWNLOAD_BYTES", str(30 * 1024 * 1024)) or str(30 * 1024 * 1024))
+
+
+def _validate_download_link(url: str) -> None:
+    parsed = urlparse(url)
+    if parsed.scheme != "https":
+        raise HTTPException(status_code=400, detail="download_link must use https.")
+    host = (parsed.hostname or "").lower()
+    if not host:
+        raise HTTPException(status_code=400, detail="download_link is missing a hostname.")
+    if host not in ALLOWED_DOWNLOAD_HOSTS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"download_link host '{host}' is not allowed. Set ALLOWED_DOWNLOAD_HOSTS to include it.",
+        )
 
 
 async def _download_to_tempfile(url: str) -> tuple[str, int]:
+    _validate_download_link(url)
     async with httpx.AsyncClient(timeout=45) as client:
         async with client.stream("GET", url, follow_redirects=True) as r:
             r.raise_for_status()
             with tempfile.NamedTemporaryFile(delete=False) as f:
                 size = 0
                 async for chunk in r.aiter_bytes():
-                    f.write(chunk)
                     size += len(chunk)
+                    if size > MAX_DOWNLOAD_BYTES:
+                        raise HTTPException(
+                            status_code=413,
+                            detail=f"File too large for media bridge (max {MAX_DOWNLOAD_BYTES} bytes).",
+                        )
+                    f.write(chunk)
                 return f.name, size
 
 

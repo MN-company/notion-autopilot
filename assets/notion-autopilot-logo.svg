@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Notion Autopilot Logo</title>
+  <desc id="desc">Rounded black square with NA monogram and autopilot dot</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10141d" />
+      <stop offset="100%" stop-color="#1c273b" />
+    </linearGradient>
+  </defs>
+  <rect x="24" y="24" width="464" height="464" rx="96" fill="url(#bg)" />
+  <rect x="82" y="114" width="46" height="284" rx="20" fill="#f4f7ff" />
+  <path d="M128 114 L318 355 L318 114 L364 114 L364 398 L322 398 L128 156 L128 398 L82 398 L82 114 Z" fill="#f4f7ff" />
+  <path d="M402 330 C428 330 448 350 448 376 C448 402 428 422 402 422 C376 422 356 402 356 376 C356 350 376 330 402 330 Z" fill="#39d98a" />
+</svg>

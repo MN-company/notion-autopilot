@@ -34,9 +34,27 @@ async def _download_to_tempfile(url: str) -> tuple[str, int]:
                 return f.name, size
 
 
-def _require_notion() -> None:
-    if not NOTION_TOKEN:
-        raise HTTPException(status_code=500, detail="NOTION_TOKEN is not configured on the media bridge service.")
+def _extract_bearer(authorization: str | None) -> str | None:
+    if not authorization:
+        return None
+    if not authorization.lower().startswith("bearer "):
+        return None
+    token = authorization.split(" ", 1)[1].strip()
+    return token or None
+
+
+def _notion_token_from_request(authorization: str | None) -> str:
+    # Prefer per-user token via Authorization header (works with OAuth-configured GPT Actions).
+    token = _extract_bearer(authorization)
+    if token:
+        return token
+    # Fallback to server-configured integration token (single workspace deployments).
+    if NOTION_TOKEN:
+        return NOTION_TOKEN
+    raise HTTPException(
+        status_code=401,
+        detail="Missing Notion token. Provide Authorization: Bearer <notion_token> or configure NOTION_TOKEN on the service.",
+    )
 
 
 def _openai_files_from_body(body: dict[str, Any]) -> list[dict[str, Any]]:
@@ -60,14 +78,17 @@ async def health() -> dict[str, str]:
 
 
 @app.post("/v1/notion/file_uploads")
-async def notion_file_uploads(body: dict[str, Any]) -> dict[str, Any]:
+async def notion_file_uploads(
+    body: dict[str, Any],
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
     """
     Upload files to Notion via the Direct Upload lifecycle:
     1) POST /v1/file_uploads (create)
     2) POST /v1/file_uploads/{id}/send (multipart/form-data, file=@...)
     Returns file_upload IDs for attachment via Notion block/page APIs.
     """
-    _require_notion()
+    notion_token = _notion_token_from_request(authorization)
     files = _openai_files_from_body(body)
 
     results: list[dict[str, Any]] = []
@@ -85,7 +106,7 @@ async def notion_file_uploads(body: dict[str, Any]) -> dict[str, Any]:
             create_resp = await client.post(
                 "https://api.notion.com/v1/file_uploads",
                 headers={
-                    "Authorization": f"Bearer {NOTION_TOKEN}",
+                    "Authorization": f"Bearer {notion_token}",
                     "Notion-Version": NOTION_VERSION,
                     "Content-Type": "application/json",
                 },
@@ -103,7 +124,7 @@ async def notion_file_uploads(body: dict[str, Any]) -> dict[str, Any]:
                 send_resp = await client.post(
                     f"https://api.notion.com/v1/file_uploads/{upload_id}/send",
                     headers={
-                        "Authorization": f"Bearer {NOTION_TOKEN}",
+                        "Authorization": f"Bearer {notion_token}",
                         "Notion-Version": NOTION_VERSION,
                     },
                     files={"file": (name, fp, mime_type)},
@@ -132,9 +153,9 @@ async def drive_upload_public(
     Upload files to Google Drive (drive.file) and make them public.
     Requires: Authorization: Bearer <google_access_token>
     """
-    if not authorization or not authorization.lower().startswith("bearer "):
+    if not _extract_bearer(authorization):
         raise HTTPException(status_code=401, detail="Missing Google OAuth access token (Authorization: Bearer ...).")
-    access_token = authorization.split(" ", 1)[1].strip()
+    access_token = _extract_bearer(authorization) or ""
     files = _openai_files_from_body(body)
     folder_name = body.get("folder_name") or "Notion Autopilot Media"
 

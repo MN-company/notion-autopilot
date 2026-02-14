@@ -13,7 +13,7 @@ This small middleware service:
 
 ## Configuration
 Environment variables:
-- `NOTION_TOKEN` (required for Notion upload): your Notion integration token (`ntn_...`)
+- `NOTION_TOKEN` (optional): Notion integration token (`ntn_...`) for single-workspace deployments. If not set, the service expects a per-user Notion token in `Authorization: Bearer ...`.
 - `NOTION_VERSION` (optional): defaults to `2022-06-28`
 
 Google Drive:
@@ -30,4 +30,3 @@ uvicorn app:app --reload --port 8000
 
 ## Deploy
 Any HTTPS host works (Cloud Run, Fly.io, Render, etc.). The GPT Action requires a public HTTPS URL with a valid certificate.
-

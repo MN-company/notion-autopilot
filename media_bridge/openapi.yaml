@@ -25,6 +25,14 @@ paths:
         Expects `openaiFileIdRefs` containing up to 10 file references from the conversation.
         At runtime, OpenAI populates `openaiFileIdRefs` with objects containing `name`, `mime_type`, and `download_link`.
         This endpoint uploads each file to Notion and returns a `file_upload_id` for each.
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          schema:
+            type: string
+          description: >
+            Bearer token for Notion. If omitted, the service must be configured with NOTION_TOKEN.
       requestBody:
         required: true
         content:
@@ -47,6 +55,13 @@ paths:
       description: >
         Requires Google OAuth access token in `Authorization: Bearer ...` header.
         Expects `openaiFileIdRefs` containing up to 10 file references from the conversation.
+      parameters:
+        - name: Authorization
+          in: header
+          required: true
+          schema:
+            type: string
+          description: Bearer token for Google Drive (OAuth access token).
       requestBody:
         required: true
         content:
@@ -64,4 +79,3 @@ paths:
       responses:
         "200":
           description: OK
-

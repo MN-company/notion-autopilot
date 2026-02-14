@@ -4,6 +4,9 @@ GPT Actions can send files to your API as short-lived download URLs (`openaiFile
 
 This small middleware service:
 - Downloads files from `openaiFileIdRefs[*].download_link`
+- Auto-expands slide decks:
+  - `pdf` -> one PNG per page
+  - `ppt/pptx` -> convert to PDF (if LibreOffice is installed) -> one PNG per slide
 - Uploads them to Notion (Direct Upload) and/or Google Drive
 - Returns IDs/URLs the GPT can embed into Notion pages
 
@@ -18,6 +21,8 @@ Environment variables:
 - `ALLOWED_DOWNLOAD_HOSTS` (optional): comma-separated allowlist for `openaiFileIdRefs[*].download_link` hosts.
 - `ALLOWED_DOWNLOAD_HOST_SUFFIXES` (optional): comma-separated allowlist for host suffixes (e.g. `oaiusercontent.com`) to accept dynamic subdomains.
 - `MAX_DOWNLOAD_BYTES` (optional): maximum file size the bridge will download (default: 30 MiB).
+- `MAX_SLIDE_PAGES` (optional): max pages/slides rendered from a deck (default: 80).
+- `SLIDE_RENDER_DPI` (optional): PNG render DPI for slide images (default: 150).
 
 Google Drive:
 - The service expects a Google OAuth access token in the request `Authorization: Bearer ...` header.
@@ -33,3 +38,5 @@ uvicorn app:app --reload --port 8000
 
 ## Deploy
 Any HTTPS host works (Cloud Run, Fly.io, Render, etc.). The GPT Action requires a public HTTPS URL with a valid certificate.
+
+If you want automatic `ppt/pptx` conversion on the bridge runtime, install LibreOffice in the container image (`soffice` must be available on PATH).

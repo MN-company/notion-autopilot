@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
+import subprocess
 import tempfile
 from typing import Any
 from urllib.parse import urlparse
+from pathlib import Path
 
 import httpx
+import fitz  # PyMuPDF
 from fastapi import FastAPI, Header, HTTPException
 
 app = FastAPI(title="Notion Autopilot Media Bridge", version="1.0.0")
@@ -33,6 +37,8 @@ ALLOWED_DOWNLOAD_HOST_SUFFIXES = {
     if s.strip()
 }
 MAX_DOWNLOAD_BYTES = int(_env("MAX_DOWNLOAD_BYTES", str(30 * 1024 * 1024)) or str(30 * 1024 * 1024))
+MAX_SLIDE_PAGES = int(_env("MAX_SLIDE_PAGES", "80") or "80")
+SLIDE_RENDER_DPI = int(_env("SLIDE_RENDER_DPI", "150") or "150")
 
 
 def _validate_download_link(url: str) -> None:
@@ -71,6 +77,118 @@ async def _download_to_tempfile(url: str) -> tuple[str, int]:
                         )
                     f.write(chunk)
                 return f.name, size
+
+
+def _cleanup_temp_artifacts(file_paths: list[str], dir_paths: list[str]) -> None:
+    for p in set(file_paths):
+        try:
+            os.remove(p)
+        except FileNotFoundError:
+            pass
+    for d in set(dir_paths):
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def _is_pdf(name: str, mime_type: str) -> bool:
+    return mime_type == "application/pdf" or name.lower().endswith(".pdf")
+
+
+def _is_presentation(name: str, mime_type: str) -> bool:
+    lower = name.lower()
+    if lower.endswith(".pptx") or lower.endswith(".ppt"):
+        return True
+    return mime_type in {
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/vnd.ms-powerpoint",
+    }
+
+
+def _render_pdf_to_pngs(pdf_path: str, source_name: str) -> list[dict[str, str]]:
+    doc = fitz.open(pdf_path)
+    try:
+        if doc.page_count == 0:
+            raise HTTPException(status_code=400, detail="The provided PDF has no pages.")
+        if doc.page_count > MAX_SLIDE_PAGES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"PDF has {doc.page_count} pages, limit is {MAX_SLIDE_PAGES}.",
+            )
+        zoom = SLIDE_RENDER_DPI / 72.0
+        matrix = fitz.Matrix(zoom, zoom)
+        base = Path(source_name).stem or "slides"
+        images: list[dict[str, str]] = []
+        for idx in range(doc.page_count):
+            page = doc.load_page(idx)
+            pix = page.get_pixmap(matrix=matrix, alpha=False)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as out:
+                out_path = out.name
+            pix.save(out_path)
+            images.append(
+                {
+                    "path": out_path,
+                    "name": f"{base}_slide_{idx + 1:03d}.png",
+                    "mime_type": "image/png",
+                }
+            )
+        return images
+    finally:
+        doc.close()
+
+
+def _convert_presentation_to_pdf(input_path: str) -> tuple[str, str]:
+    soffice = shutil.which("soffice") or shutil.which("libreoffice")
+    if not soffice:
+        raise HTTPException(
+            status_code=422,
+            detail="PPT/PPTX conversion requires LibreOffice (`soffice`) on the bridge runtime. "
+            "Upload a PDF deck or install LibreOffice in the container.",
+        )
+    out_dir = tempfile.mkdtemp(prefix="pptx_to_pdf_")
+    try:
+        result = subprocess.run(
+            [soffice, "--headless", "--convert-to", "pdf", "--outdir", out_dir, input_path],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=180,
+        )
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or "").strip()
+        stdout = (exc.stdout or "").strip()
+        raise HTTPException(
+            status_code=500,
+            detail=f"PPT/PPTX conversion failed. stdout={stdout[:500]} stderr={stderr[:500]}",
+        ) from exc
+    except subprocess.TimeoutExpired as exc:
+        raise HTTPException(status_code=504, detail="PPT/PPTX conversion timed out.") from exc
+
+    candidates = sorted(Path(out_dir).glob("*.pdf"))
+    if not candidates:
+        # LibreOffice sometimes emits success text without output when input is malformed.
+        output = (result.stdout or "").strip()
+        raise HTTPException(status_code=500, detail=f"PPT/PPTX conversion produced no PDF. {output[:500]}")
+    return str(candidates[0]), out_dir
+
+
+def _expand_downloaded_file(
+    file_path: str, name: str, mime_type: str
+) -> tuple[list[dict[str, str]], list[str], list[str]]:
+    cleanup_files = [file_path]
+    cleanup_dirs: list[str] = []
+
+    if _is_pdf(name, mime_type):
+        images = _render_pdf_to_pngs(file_path, name)
+        cleanup_files.extend([img["path"] for img in images])
+        return images, cleanup_files, cleanup_dirs
+
+    if _is_presentation(name, mime_type):
+        pdf_path, tmp_dir = _convert_presentation_to_pdf(file_path)
+        cleanup_dirs.append(tmp_dir)
+        images = _render_pdf_to_pngs(pdf_path, name)
+        cleanup_files.extend([img["path"] for img in images])
+        return images, cleanup_files, cleanup_dirs
+
+    return [{"path": file_path, "name": name, "mime_type": mime_type}], cleanup_files, cleanup_dirs
 
 
 def _extract_bearer(authorization: str | None) -> str | None:
@@ -146,45 +264,54 @@ async def notion_file_uploads(
                 raise HTTPException(status_code=400, detail="Missing download_link in openaiFileIdRefs item.")
 
             tmp_path, _size = await _download_to_tempfile(download_link)
+            expanded_files, cleanup_files, cleanup_dirs = _expand_downloaded_file(tmp_path, name, mime_type)
+            try:
+                for item in expanded_files:
+                    upload_name = item["name"]
+                    upload_mime = item["mime_type"]
+                    upload_path = item["path"]
 
-            # Step 1: create upload object
-            create_resp = await client.post(
-                "https://api.notion.com/v1/file_uploads",
-                headers={
-                    "Authorization": f"Bearer {notion_token}",
-                    "Notion-Version": NOTION_VERSION,
-                    "Content-Type": "application/json",
-                },
-                json={"mode": "single_part", "filename": name, "content_type": mime_type},
-            )
-            if create_resp.status_code >= 400:
-                raise HTTPException(status_code=create_resp.status_code, detail=create_resp.text)
-            upload_obj = create_resp.json()
-            upload_id = upload_obj.get("id")
-            if not upload_id:
-                raise HTTPException(status_code=502, detail="Notion did not return a file upload id.")
+                    # Step 1: create upload object
+                    create_resp = await client.post(
+                        "https://api.notion.com/v1/file_uploads",
+                        headers={
+                            "Authorization": f"Bearer {notion_token}",
+                            "Notion-Version": NOTION_VERSION,
+                            "Content-Type": "application/json",
+                        },
+                        json={"mode": "single_part", "filename": upload_name, "content_type": upload_mime},
+                    )
+                    if create_resp.status_code >= 400:
+                        raise HTTPException(status_code=create_resp.status_code, detail=create_resp.text)
+                    upload_obj = create_resp.json()
+                    upload_id = upload_obj.get("id")
+                    if not upload_id:
+                        raise HTTPException(status_code=502, detail="Notion did not return a file upload id.")
 
-            # Step 2: send bytes
-            with open(tmp_path, "rb") as fp:
-                send_resp = await client.post(
-                    f"https://api.notion.com/v1/file_uploads/{upload_id}/send",
-                    headers={
-                        "Authorization": f"Bearer {notion_token}",
-                        "Notion-Version": NOTION_VERSION,
-                    },
-                    files={"file": (name, fp, mime_type)},
-                )
-            if send_resp.status_code >= 400:
-                # Bubble up: caller can fallback to Drive if this is a size-limit error.
-                raise HTTPException(status_code=send_resp.status_code, detail=send_resp.text)
+                    # Step 2: send bytes
+                    with open(upload_path, "rb") as fp:
+                        send_resp = await client.post(
+                            f"https://api.notion.com/v1/file_uploads/{upload_id}/send",
+                            headers={
+                                "Authorization": f"Bearer {notion_token}",
+                                "Notion-Version": NOTION_VERSION,
+                            },
+                            files={"file": (upload_name, fp, upload_mime)},
+                        )
+                    if send_resp.status_code >= 400:
+                        # Bubble up: caller can fallback to Drive if this is a size-limit error.
+                        raise HTTPException(status_code=send_resp.status_code, detail=send_resp.text)
 
-            results.append(
-                {
-                    "name": name,
-                    "mime_type": mime_type,
-                    "file_upload_id": upload_id,
-                }
-            )
+                    results.append(
+                        {
+                            "source_name": name,
+                            "name": upload_name,
+                            "mime_type": upload_mime,
+                            "file_upload_id": upload_id,
+                        }
+                    )
+            finally:
+                _cleanup_temp_artifacts(cleanup_files, cleanup_dirs)
 
     return {"uploads": results}
 
@@ -243,59 +370,68 @@ async def drive_upload_public(
                 raise HTTPException(status_code=400, detail="Missing download_link in openaiFileIdRefs item.")
 
             tmp_path, _size = await _download_to_tempfile(download_link)
-            with open(tmp_path, "rb") as fp:
-                file_bytes = fp.read()
+            expanded_files, cleanup_files, cleanup_dirs = _expand_downloaded_file(tmp_path, name, mime_type)
+            try:
+                for item in expanded_files:
+                    upload_name = item["name"]
+                    upload_mime = item["mime_type"]
+                    upload_path = item["path"]
+                    with open(upload_path, "rb") as fp:
+                        file_bytes = fp.read()
 
-            boundary = "notion-autopilot-boundary"
-            metadata = {"name": name, "parents": [folder_id]}
-            body_bytes = (
-                f"--{boundary}\r\n"
-                "Content-Type: application/json; charset=UTF-8\r\n\r\n"
-                f"{json.dumps(metadata)}\r\n"
-                f"--{boundary}\r\n"
-                f"Content-Type: {mime_type}\r\n\r\n"
-            ).encode("utf-8") + file_bytes + f"\r\n--{boundary}--\r\n".encode("utf-8")
+                    boundary = "notion-autopilot-boundary"
+                    metadata = {"name": upload_name, "parents": [folder_id]}
+                    body_bytes = (
+                        f"--{boundary}\r\n"
+                        "Content-Type: application/json; charset=UTF-8\r\n\r\n"
+                        f"{json.dumps(metadata)}\r\n"
+                        f"--{boundary}\r\n"
+                        f"Content-Type: {upload_mime}\r\n\r\n"
+                    ).encode("utf-8") + file_bytes + f"\r\n--{boundary}--\r\n".encode("utf-8")
 
-            upload_resp = await client.post(
-                "https://www.googleapis.com/upload/drive/v3/files",
-                headers={**headers, "Content-Type": f"multipart/related; boundary={boundary}"},
-                params={"uploadType": "multipart", "fields": "id,webViewLink,webContentLink"},
-                content=body_bytes,
-            )
-            if upload_resp.status_code >= 400:
-                raise HTTPException(status_code=upload_resp.status_code, detail=upload_resp.text)
-            uploaded = upload_resp.json() or {}
-            file_id = uploaded.get("id")
-            if not file_id:
-                raise HTTPException(status_code=502, detail="Drive did not return a file id.")
+                    upload_resp = await client.post(
+                        "https://www.googleapis.com/upload/drive/v3/files",
+                        headers={**headers, "Content-Type": f"multipart/related; boundary={boundary}"},
+                        params={"uploadType": "multipart", "fields": "id,webViewLink,webContentLink"},
+                        content=body_bytes,
+                    )
+                    if upload_resp.status_code >= 400:
+                        raise HTTPException(status_code=upload_resp.status_code, detail=upload_resp.text)
+                    uploaded = upload_resp.json() or {}
+                    file_id = uploaded.get("id")
+                    if not file_id:
+                        raise HTTPException(status_code=502, detail="Drive did not return a file id.")
 
-            perm_resp = await client.post(
-                f"https://www.googleapis.com/drive/v3/files/{file_id}/permissions",
-                headers={**headers, "Content-Type": "application/json"},
-                json={"type": "anyone", "role": "reader"},
-            )
-            if perm_resp.status_code >= 400:
-                raise HTTPException(status_code=perm_resp.status_code, detail=perm_resp.text)
+                    perm_resp = await client.post(
+                        f"https://www.googleapis.com/drive/v3/files/{file_id}/permissions",
+                        headers={**headers, "Content-Type": "application/json"},
+                        json={"type": "anyone", "role": "reader"},
+                    )
+                    if perm_resp.status_code >= 400:
+                        raise HTTPException(status_code=perm_resp.status_code, detail=perm_resp.text)
 
-            meta_resp = await client.get(
-                f"https://www.googleapis.com/drive/v3/files/{file_id}",
-                headers=headers,
-                params={"fields": "id,name,webContentLink,webViewLink"},
-            )
-            if meta_resp.status_code >= 400:
-                raise HTTPException(status_code=meta_resp.status_code, detail=meta_resp.text)
-            meta = meta_resp.json() or {}
-            web_content = meta.get("webContentLink")
-            public_url = web_content or f"https://drive.google.com/uc?export=download&id={file_id}"
+                    meta_resp = await client.get(
+                        f"https://www.googleapis.com/drive/v3/files/{file_id}",
+                        headers=headers,
+                        params={"fields": "id,name,webContentLink,webViewLink"},
+                    )
+                    if meta_resp.status_code >= 400:
+                        raise HTTPException(status_code=meta_resp.status_code, detail=meta_resp.text)
+                    meta = meta_resp.json() or {}
+                    web_content = meta.get("webContentLink")
+                    public_url = web_content or f"https://drive.google.com/uc?export=download&id={file_id}"
 
-            results.append(
-                {
-                    "name": name,
-                    "mime_type": mime_type,
-                    "file_id": file_id,
-                    "public_url": public_url,
-                    "web_view_url": meta.get("webViewLink"),
-                }
-            )
+                    results.append(
+                        {
+                            "source_name": name,
+                            "name": upload_name,
+                            "mime_type": upload_mime,
+                            "file_id": file_id,
+                            "public_url": public_url,
+                            "web_view_url": meta.get("webViewLink"),
+                        }
+                    )
+            finally:
+                _cleanup_temp_artifacts(cleanup_files, cleanup_dirs)
 
     return {"files": results}

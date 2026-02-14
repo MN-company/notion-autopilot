@@ -16,6 +16,7 @@ Environment variables:
 - `NOTION_TOKEN` (optional): Notion integration token (`ntn_...`) for single-workspace deployments. If not set, the service expects a per-user Notion token in `Authorization: Bearer ...`.
 - `NOTION_VERSION` (optional): defaults to `2022-06-28`
 - `ALLOWED_DOWNLOAD_HOSTS` (optional): comma-separated allowlist for `openaiFileIdRefs[*].download_link` hosts.
+- `ALLOWED_DOWNLOAD_HOST_SUFFIXES` (optional): comma-separated allowlist for host suffixes (e.g. `oaiusercontent.com`) to accept dynamic subdomains.
 - `MAX_DOWNLOAD_BYTES` (optional): maximum file size the bridge will download (default: 30 MiB).
 
 Google Drive:

@@ -27,6 +27,11 @@ ALLOWED_DOWNLOAD_HOSTS = {
     .split(",")
     if h.strip()
 }
+ALLOWED_DOWNLOAD_HOST_SUFFIXES = {
+    s.strip().lower().lstrip(".")
+    for s in (_env("ALLOWED_DOWNLOAD_HOST_SUFFIXES", "oaiusercontent.com,openaiusercontent.com") or "").split(",")
+    if s.strip()
+}
 MAX_DOWNLOAD_BYTES = int(_env("MAX_DOWNLOAD_BYTES", str(30 * 1024 * 1024)) or str(30 * 1024 * 1024))
 
 
@@ -37,10 +42,16 @@ def _validate_download_link(url: str) -> None:
     host = (parsed.hostname or "").lower()
     if not host:
         raise HTTPException(status_code=400, detail="download_link is missing a hostname.")
-    if host not in ALLOWED_DOWNLOAD_HOSTS:
+    host_ok = host in ALLOWED_DOWNLOAD_HOSTS or any(
+        host == suffix or host.endswith(f".{suffix}") for suffix in ALLOWED_DOWNLOAD_HOST_SUFFIXES
+    )
+    if not host_ok:
         raise HTTPException(
             status_code=400,
-            detail=f"download_link host '{host}' is not allowed. Set ALLOWED_DOWNLOAD_HOSTS to include it.",
+            detail=(
+                f"download_link host '{host}' is not allowed. "
+                "Set ALLOWED_DOWNLOAD_HOSTS or ALLOWED_DOWNLOAD_HOST_SUFFIXES to include it."
+            ),
         )
 
 

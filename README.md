@@ -26,3 +26,10 @@ Database schema (simplified):
 - Note (rich_text) -> used by the GPT to record observed style signals (e.g., "H1 -> yellow").
 
 Include `workspace_plan` with value `free` or `paid` so the agent can choose the correct file upload strategy.
+
+## Google Drive fallback
+For images that exceed Notion workspace limits, the prompt uses Google Drive as a fallback:
+- Upload to a dedicated folder named "Notion Autopilot Media".
+- Create a public permission and attach the image as an external URL in Notion.
+
+Use `google_drive_api.yaml` as the action schema for Drive API calls.

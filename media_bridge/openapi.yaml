@@ -9,6 +9,28 @@ servers:
   - url: https://YOUR_MEDIA_BRIDGE_HOST
 
 components:
+  schemas:
+    OpenAIFileRefsRequest:
+      type: object
+      properties:
+        openaiFileIdRefs:
+          type: array
+          items:
+            type: string
+      required:
+        - openaiFileIdRefs
+    DriveUploadRequest:
+      type: object
+      properties:
+        folder_name:
+          type: string
+          description: Folder name for uploaded files.
+        openaiFileIdRefs:
+          type: array
+          items:
+            type: string
+      required:
+        - openaiFileIdRefs
   securitySchemes:
     bearerAuth:
       type: http
@@ -29,21 +51,14 @@ paths:
       operationId: notionFileUploads
       summary: Upload files to Notion
       description: >
-        Expects `openaiFileIdRefs` containing up to 10 file references from the conversation.
-        At runtime, OpenAI populates `openaiFileIdRefs` with objects containing `name`, `mime_type`, and `download_link`.
-        This endpoint uploads each file to Notion and returns a `file_upload_id` for each.
-        If the service has NOTION_TOKEN set, no request auth is required for this endpoint.
+        Uploads files from `openaiFileIdRefs` to Notion and returns `file_upload_id` values.
+        If `NOTION_TOKEN` is set on the service, no per-request auth is required.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                openaiFileIdRefs:
-                  type: array
-                  items:
-                    type: string
+              $ref: "#/components/schemas/OpenAIFileRefsRequest"
       responses:
         "200":
           description: OK
@@ -62,15 +77,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                folder_name:
-                  type: string
-                  description: Folder name to create/find for uploads.
-                openaiFileIdRefs:
-                  type: array
-                  items:
-                    type: string
+              $ref: "#/components/schemas/DriveUploadRequest"
       responses:
         "200":
           description: OK

@@ -14,6 +14,7 @@ The goal is simple: fewer "where is the page?" questions, more finished pages.
 - `prompt.md`: The full system prompt used by the GPT.
 - `notion_api.yaml`: A strict, parser-friendly OpenAPI schema for the Notion API.
 - `google_drive_api.yaml`: Minimal Google Drive API schema for media fallback uploads.
+- `media_bridge/`: Optional middleware for autonomous slide/image uploads (Notion + Drive).
 - `conversation_starters.md`: Sample prompts to help users get started.
 - `privacy_statement.md`: Privacy policy aligned with the prompt and schemas.
 - `seed_preferences.csv`: Starter rows for the preferences database.
@@ -26,7 +27,8 @@ The goal is simple: fewer "where is the page?" questions, more finished pages.
 - Create a Notion integration and share the pages/databases you want the agent to access.
 - Create a database named "Notion Autopilot Preferences" with properties: `Key` (title), `Value` (rich_text), `Note` (rich_text).
 - Import `seed_preferences.csv` into that database and set `workspace_plan` to `free` or `paid`.
-- (Optional) Configure a Google Drive Action using `google_drive_api.yaml` so the agent can upload images when Notion blocks large files.
+- (Recommended) Deploy the Media Bridge service in `media_bridge/` and add it as an Action so the GPT can upload files autonomously.
+- (Optional) Configure a direct Google Drive Action using `google_drive_api.yaml` if you do not need file uploads from the conversation.
 
 ## Contributing
 PRs and issue reports are welcome. If you have ideas for better prompts, improved API schemas, or additional conversation starters, feel free to open a pull request.

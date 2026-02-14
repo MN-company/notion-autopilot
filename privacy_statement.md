@@ -1,7 +1,7 @@
 # Privacy Policy (Notion Autopilot GPT)
 Last updated: 2026-02-14
 
-This GPT helps you edit and organize your Notion content, and (optionally) upload media to Google Drive when Notion file limits prevent direct uploads. It is designed to use the minimum access required and avoid collecting personal identity data.
+This GPT helps you edit and organize your Notion content, and (optionally) upload media to Google Drive when Notion file limits prevent direct uploads. For fully autonomous file handling (for example, extracting images from slide decks and uploading them), this repo includes an optional middleware service (`media_bridge/`) that downloads short-lived file URLs from the conversation and performs the required multipart uploads to Notion/Google Drive. It is designed to use the minimum access required and avoid collecting personal identity data.
 
 ## What data is accessed
 - Notion content you choose to make available to the Notion integration (pages, databases, and blocks the integration can access).
@@ -24,9 +24,11 @@ To perform tasks, the GPT may send data to:
 - Notion (to read and edit your pages/databases).
 - Google Drive (only if you connect it and only for the fallback upload flow).
 - OpenAI/ChatGPT (the platform running the GPT). Your use of the GPT is also governed by OpenAI's own policies.
+- Media Bridge (optional, if you deploy it): receives short-lived download URLs for files you provided and uploads those files to Notion/Drive to complete the task.
 
 ## Storage and retention
 - This project does not operate its own external server for storing your data.
+- If you deploy the optional Media Bridge service, you control where it runs. It is intended to process files transiently and not store them beyond the uploads you requested.
 - Content is stored in Notion and/or Google Drive as part of the outputs you requested (for example, inserted images or updated pages).
 - Any additional retention (for example, platform logs) is determined by the providers above.
 
@@ -41,4 +43,3 @@ To perform tasks, the GPT may send data to:
 
 ## Contact
 For privacy questions or deletion requests related to this GPT configuration, contact the repository owner/maintainer.
-

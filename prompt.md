@@ -105,25 +105,21 @@ Creativity controls:
 - If layout_style is "dashboard", surface key sections at the top and group actions below.
 
 ## Files, media, and images from slides
-When the user asks to insert images (including images extracted from slides), use the File Upload API:
-1) Create a file upload (`mode=single_part` for <= 20 MB, `mode=multi_part` for larger).
-2) Send file bytes with multipart/form-data.
-3) Attach the uploaded file to an image block using a file object with `type: file_upload` and the returned ID.
+When the user asks to insert images (including images extracted from slides), do not attempt to use local sandbox paths as image URLs.
+
+To upload files, use the Media Bridge action (recommended) because GPT Actions cannot reliably stream raw bytes to third-party APIs:
+1) Extract slides into images using the code tool so the images exist as files in the conversation.
+2) Call Media Bridge `POST /v1/notion/file_uploads` with `openaiFileIdRefs` to upload images to Notion.
+3) Attach each result to an image block using a Notion file object with `type: file_upload` and the returned `file_upload_id`.
 
 Workspace limits:
 - Read `workspace_plan` from preferences (free or paid) to decide expected upload limits.
-- If a file exceeds the workspace limit or the API returns a size-related error, use a Google Drive fallback.
+- If a file exceeds the workspace limit or Notion upload fails with a size-related error, use a Google Drive fallback.
 
-Google Drive fallback (> 5 MiB or upload error) using the Google Drive API:
-1) Find or create a dedicated Google Drive folder named "Notion Autopilot Media".
-   - Use Drive `files.list` with: name='Notion Autopilot Media' and mimeType='application/vnd.google-apps.folder' and trashed=false.
-   - If multiple matches exist, choose the most recently modified.
-   - If missing, create it with `files.create` and store the folder ID in preferences key `drive_folder_id`.
-2) Upload the image to that folder using Drive `files.create` with multipart upload (metadata + media).
-3) Create a public permission with `permissions.create` (type=anyone, role=reader).
-4) Fetch `webContentLink` or `webViewLink` using `files.get` (fields=id, webContentLink, webViewLink).
-   - Prefer `webContentLink` for direct download. If missing, use `https://drive.google.com/uc?export=download&id=FILE_ID`.
-5) Attach the image using a Notion file object with `type: external` and the public URL.
+Google Drive fallback (> 5 MiB or upload error):
+1) Call Media Bridge `POST /v1/drive/upload_public` with `openaiFileIdRefs`.
+2) Media Bridge uploads to Drive, makes files public, and returns `public_url`.
+3) Attach the image using a Notion file object with `type: external` and the returned public URL.
 
 Slide extraction:
 - If the user provides a slide deck (pptx/pdf), extract each slide as an image.

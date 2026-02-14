@@ -202,6 +202,18 @@ components:
           type: object
           additionalProperties: true
           properties: {}
+        video:
+          type: object
+          additionalProperties: true
+          properties: {}
+        audio:
+          type: object
+          additionalProperties: true
+          properties: {}
+        pdf:
+          type: object
+          additionalProperties: true
+          properties: {}
 
     # ---------- File uploads ----------
     CreateFileUploadRequest:
@@ -537,7 +549,7 @@ paths:
           required: true
           schema:
             type: string
-            example: "2025-09-03"
+            example: "2022-06-28"
       requestBody:
         required: false
         content:
@@ -559,7 +571,7 @@ paths:
           required: true
           schema:
             type: string
-            example: "2025-09-03"
+            example: "2022-06-28"
       responses:
         "200":
           description: OK
@@ -580,7 +592,7 @@ paths:
           required: true
           schema:
             type: string
-            example: "2025-09-03"
+            example: "2022-06-28"
       responses:
         "200":
           description: OK
@@ -601,7 +613,7 @@ paths:
           required: true
           schema:
             type: string
-            example: "2025-09-03"
+            example: "2022-06-28"
       requestBody:
         required: true
         content:
@@ -637,7 +649,7 @@ paths:
           required: true
           schema:
             type: string
-            example: "2025-09-03"
+            example: "2022-06-28"
       requestBody:
         required: false
         content:

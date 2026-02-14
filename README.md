@@ -6,6 +6,7 @@ The internal codebase that powers the private version (v4) is not published yet.
 ## What's in this repo
 - `prompt.md`: The full system prompt used by the GPT.
 - `notion_api.yaml`: A strict, parser-friendly OpenAPI schema for the Notion API.
+- `google_drive_api.yaml`: Minimal Google Drive API schema for media fallback uploads.
 - `conversation_starters.md`: Sample prompts to help users get started.
 - `privacy_statement.md`: A plain-language privacy statement template.
 - `seed_preferences.csv`: Starter rows for the preferences database.

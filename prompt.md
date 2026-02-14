@@ -48,6 +48,7 @@ Preference keys (common defaults):
 - workspace_plan: free | paid (used to decide file upload limits)
 - tldr_length, tone, formatting_style, creative_level, layout_style, visual_weight
 - action_items_format, section_defaults, change_log, date_format, timezone
+- drive_folder_id: Google Drive folder ID for media fallback
 
 Note usage:
 - Use Note to record observed style signals (e.g., "H1 -> yellow", "callouts rare").
@@ -109,11 +110,20 @@ Workspace limits:
 - Read `workspace_plan` from preferences (free or paid) to decide expected upload limits.
 - If a file exceeds the workspace limit or the API returns a size-related error, use a Google Drive fallback.
 
-Google Drive fallback (> 5 MiB or upload error):
-- Upload the image to a dedicated Google Drive folder named "Notion Autopilot Media".
-- Make the file publicly accessible and obtain a direct-download URL.
-- Attach the image using a file object with `type: external` and the public URL.
-- If the folder does not exist, create it and store its ID in preferences with key `drive_folder_id`.
+Google Drive fallback (> 5 MiB or upload error) using the Google Drive API:
+1) Find or create a dedicated Google Drive folder named "Notion Autopilot Media".
+   - Use Drive `files.list` with: name='Notion Autopilot Media' and mimeType='application/vnd.google-apps.folder' and trashed=false.
+   - If multiple matches exist, choose the most recently modified.
+   - If missing, create it with `files.create` and store the folder ID in preferences key `drive_folder_id`.
+2) Upload the image to that folder using Drive `files.create` with multipart upload (metadata + media).
+3) Create a public permission with `permissions.create` (type=anyone, role=reader).
+4) Fetch `webContentLink` or `webViewLink` using `files.get` (fields=id, webContentLink, webViewLink).
+   - Prefer `webContentLink` for direct download. If missing, use `https://drive.google.com/uc?export=download&id=FILE_ID`.
+5) Attach the image using a Notion file object with `type: external` and the public URL.
+
+Slide extraction:
+- If the user provides a slide deck (pptx/pdf), extract each slide as an image.
+- For each image, apply the Notion upload flow; if it fails due to size or workspace limits, use the Drive fallback.
 
 ## Failure handling (no authorization requests)
 - If `/search` returns empty: make a second automatic attempt with a shorter query (remove articles/quotes, try main keywords).

@@ -1,0 +1,162 @@
+openapi: 3.1.0
+info:
+  title: Google Drive API (media fallback)
+  version: "1.0.0"
+  description: >
+    Minimal Google Drive API schema for uploading images, creating folders,
+    setting public permissions, and retrieving direct links.
+servers:
+  - url: https://www.googleapis.com
+
+tags:
+  - name: Files
+    description: List, create, upload, and retrieve files.
+  - name: Permissions
+    description: Create permissions for files.
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: "OAuth 2.0 access token"
+
+security:
+  - bearerAuth: []
+
+paths:
+  /drive/v3/files:
+    get:
+      operationId: listFiles
+      summary: List files
+      description: List files matching a query.
+      tags: [Files]
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: fields
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+        - name: pageToken
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+    post:
+      operationId: createFile
+      summary: Create file metadata or folder
+      description: Create a file or folder using metadata only.
+      tags: [Files]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: OK
+
+  /upload/drive/v3/files:
+    post:
+      operationId: uploadFile
+      summary: Upload file content
+      description: Upload a file using multipart, media, or resumable upload.
+      tags: [Files]
+      parameters:
+        - name: uploadType
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [multipart, media, resumable]
+        - name: fields
+          in: query
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/related:
+            schema:
+              type: object
+              properties:
+                metadata:
+                  type: string
+                file:
+                  type: string
+                  format: binary
+              required: [file]
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: OK
+
+  /drive/v3/files/{fileId}:
+    get:
+      operationId: getFile
+      summary: Get file metadata
+      description: Retrieve a file and selected fields such as webContentLink or webViewLink.
+      tags: [Files]
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: fields
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+
+  /drive/v3/files/{fileId}/permissions:
+    post:
+      operationId: createPermission
+      summary: Create permission
+      description: Create a public permission for a file.
+      tags: [Permissions]
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              properties:
+                type:
+                  type: string
+                role:
+                  type: string
+      responses:
+        "200":
+          description: OK

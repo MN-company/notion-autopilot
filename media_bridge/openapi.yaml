@@ -6,8 +6,7 @@ info:
     Middleware API for GPT Actions that need to upload files to services that
     require raw bytes (Notion file uploads, Google Drive uploads).
 servers:
-  - url: https://YOUR_MEDIA_BRIDGE_HOST
-
+  - url: https://notion-autopilot-media-bridge-557377393069.europe-west1.run.app
 paths:
   /health:
     get:

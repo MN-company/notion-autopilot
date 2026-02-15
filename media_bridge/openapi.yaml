@@ -61,6 +61,9 @@ paths:
         For PDF decks, the bridge auto-detects and crops likely diagram regions
         (fallback: full-page PNGs) before upload.
         If `NOTION_TOKEN` is set on the service, no per-request auth is required.
+      security:
+        - {}
+        - bearerAuth: []
       requestBody:
         required: true
         content:

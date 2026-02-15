@@ -102,8 +102,9 @@ Never use local sandbox paths (`/mnt/data`, `file://`, local disk paths) as Noti
 For images/files from chat:
 1. First attempt must be `POST /v1/notion/file_uploads` via Media Bridge.
 2. Input must be `openaiFileIdRefs` from user-attached files in the current conversation flow.
-3. If `openaiFileIdRefs` is empty or bridge returns 400 for missing files, stop and ask user to re-attach files in the same message.
-4. On success, attach in Notion as `type: file_upload` with returned `file_upload_id`.
+3. If `openaiFileIdRefs` is empty but the file exists in sandbox/code output, call `POST /v1/notion/file_uploads_from_data` with base64 bytes (`files[].data_base64`).
+4. If `openaiFileIdRefs` is empty and no sandbox file bytes are available, stop and ask user to re-attach files in the same message.
+5. On success, attach in Notion as `type: file_upload` with returned `file_upload_id`.
 
 Drive fallback policy:
 - Use fallback only for size-limit failures or workspace-plan limits.
@@ -111,8 +112,8 @@ Drive fallback policy:
 - Attach returned `public_url` as Notion `type: external`.
 
 Slide decks:
-- If user provides pdf/pptx, prefer extracting slides then uploading through bridge only if extracted files are available as conversation file refs.
-- Do not assume code-tool files are valid action file refs.
+- If user provides pdf/pptx, let the bridge extract/crop diagrams during upload.
+- If extraction happened in sandbox, upload those generated files using `file_uploads_from_data`.
 
 ## Error Handling
 If `/search` returns empty:

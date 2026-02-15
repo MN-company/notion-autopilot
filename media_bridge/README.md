@@ -12,6 +12,7 @@ This small middleware service:
 
 ## Endpoints
 - `POST /v1/notion/file_uploads` uploads files to Notion and returns `file_upload_id`s.
+- `POST /v1/notion/file_uploads_from_data` uploads base64 file bytes to Notion (for sandbox-generated files) and returns `file_upload_id`s.
 - `POST /v1/drive/upload_public` uploads files to Drive, makes them public, and returns public URLs.
 - `GET /oauth/notion/authorize` OAuth authorize proxy for Notion (same-domain URL for GPT Actions).
 - `POST /oauth/notion/token` OAuth token proxy for Notion (same-domain URL for GPT Actions).
@@ -28,6 +29,7 @@ Environment variables:
 - `PDF_EXTRACT_MODE` (optional): `diagram` (default) to crop likely diagram regions, or `page` to export full pages only.
 - `NOTION_OAUTH_AUTHORIZE_URL` (optional): defaults to `https://api.notion.com/v1/oauth/authorize`
 - `NOTION_OAUTH_TOKEN_URL` (optional): defaults to `https://api.notion.com/v1/oauth/token`
+- `MAX_INLINE_FILE_BYTES` (optional): max bytes for each base64 inline file upload (default: 8 MiB).
 
 Google Drive:
 - The service expects a Google OAuth access token in the request `Authorization: Bearer ...` header.
@@ -57,3 +59,15 @@ Use this when each user must connect their own Notion workspace.
 3. In Notion integration settings, add the redirect URI shown by GPT Actions.
 4. Do not set `NOTION_TOKEN` on Cloud Run for multi-user mode.
 5. The bridge will use each user's bearer token received from GPT Actions.
+
+## Sandbox file upload path
+When a file exists only in sandbox/code output (not as `openaiFileIdRefs`), call:
+
+`POST /v1/notion/file_uploads_from_data`
+
+with:
+- `files[].name`
+- `files[].mime_type`
+- `files[].data_base64`
+
+The bridge decodes bytes, applies deck extraction for PDF/PPTX when applicable, and uploads to Notion.

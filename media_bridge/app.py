@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import os
 import shutil
@@ -45,6 +46,7 @@ SLIDE_RENDER_DPI = int(_env("SLIDE_RENDER_DPI", "150") or "150")
 PDF_EXTRACT_MODE = (_env("PDF_EXTRACT_MODE", "diagram") or "diagram").strip().lower()
 NOTION_OAUTH_AUTHORIZE_URL = _env("NOTION_OAUTH_AUTHORIZE_URL", "https://api.notion.com/v1/oauth/authorize")
 NOTION_OAUTH_TOKEN_URL = _env("NOTION_OAUTH_TOKEN_URL", "https://api.notion.com/v1/oauth/token")
+MAX_INLINE_FILE_BYTES = int(_env("MAX_INLINE_FILE_BYTES", str(8 * 1024 * 1024)) or str(8 * 1024 * 1024))
 
 
 def _validate_download_link(url: str) -> None:
@@ -366,6 +368,81 @@ def _openai_files_from_body(body: dict[str, Any]) -> list[dict[str, Any]]:
     return normalized
 
 
+def _inline_files_from_body(body: dict[str, Any]) -> list[dict[str, Any]]:
+    files = body.get("files") or []
+    if not isinstance(files, list):
+        raise HTTPException(status_code=400, detail="files must be an array.")
+    if len(files) == 0:
+        raise HTTPException(status_code=400, detail="No inline files provided.")
+
+    normalized: list[dict[str, Any]] = []
+    for idx, item in enumerate(files):
+        if not isinstance(item, dict):
+            raise HTTPException(status_code=400, detail=f"files[{idx}] must be an object.")
+        name = item.get("name") or f"inline_{idx + 1}"
+        mime_type = item.get("mime_type") or "application/octet-stream"
+        data_base64 = item.get("data_base64")
+        if not isinstance(data_base64, str) or not data_base64.strip():
+            raise HTTPException(status_code=400, detail=f"files[{idx}].data_base64 is required.")
+        normalized.append({"name": name, "mime_type": mime_type, "data_base64": data_base64.strip()})
+    return normalized
+
+
+def _decode_inline_file_to_tempfile(data_base64: str) -> tuple[str, int]:
+    try:
+        raw = base64.b64decode(data_base64, validate=True)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Invalid base64 payload.") from exc
+    size = len(raw)
+    if size == 0:
+        raise HTTPException(status_code=400, detail="Inline file is empty.")
+    if size > MAX_INLINE_FILE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Inline file too large ({size} bytes). Max is {MAX_INLINE_FILE_BYTES} bytes.",
+        )
+    with tempfile.NamedTemporaryFile(delete=False) as f:
+        f.write(raw)
+        return f.name, size
+
+
+async def _upload_file_to_notion(
+    client: httpx.AsyncClient,
+    notion_token: str,
+    file_path: str,
+    name: str,
+    mime_type: str,
+) -> str:
+    create_resp = await client.post(
+        "https://api.notion.com/v1/file_uploads",
+        headers={
+            "Authorization": f"Bearer {notion_token}",
+            "Notion-Version": NOTION_VERSION,
+            "Content-Type": "application/json",
+        },
+        json={"mode": "single_part", "filename": name, "content_type": mime_type},
+    )
+    if create_resp.status_code >= 400:
+        raise HTTPException(status_code=create_resp.status_code, detail=create_resp.text)
+    upload_obj = create_resp.json()
+    upload_id = upload_obj.get("id")
+    if not upload_id:
+        raise HTTPException(status_code=502, detail="Notion did not return a file upload id.")
+
+    with open(file_path, "rb") as fp:
+        send_resp = await client.post(
+            f"https://api.notion.com/v1/file_uploads/{upload_id}/send",
+            headers={
+                "Authorization": f"Bearer {notion_token}",
+                "Notion-Version": NOTION_VERSION,
+            },
+            files={"file": (name, fp, mime_type)},
+        )
+    if send_resp.status_code >= 400:
+        raise HTTPException(status_code=send_resp.status_code, detail=send_resp.text)
+    return upload_id
+
+
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -433,38 +510,52 @@ async def notion_file_uploads(
                     upload_name = item["name"]
                     upload_mime = item["mime_type"]
                     upload_path = item["path"]
+                    upload_id = await _upload_file_to_notion(client, notion_token, upload_path, upload_name, upload_mime)
 
-                    # Step 1: create upload object
-                    create_resp = await client.post(
-                        "https://api.notion.com/v1/file_uploads",
-                        headers={
-                            "Authorization": f"Bearer {notion_token}",
-                            "Notion-Version": NOTION_VERSION,
-                            "Content-Type": "application/json",
-                        },
-                        json={"mode": "single_part", "filename": upload_name, "content_type": upload_mime},
+                    results.append(
+                        {
+                            "source_name": name,
+                            "name": upload_name,
+                            "mime_type": upload_mime,
+                            "file_upload_id": upload_id,
+                        }
                     )
-                    if create_resp.status_code >= 400:
-                        raise HTTPException(status_code=create_resp.status_code, detail=create_resp.text)
-                    upload_obj = create_resp.json()
-                    upload_id = upload_obj.get("id")
-                    if not upload_id:
-                        raise HTTPException(status_code=502, detail="Notion did not return a file upload id.")
+            finally:
+                _cleanup_temp_artifacts(cleanup_files, cleanup_dirs)
 
-                    # Step 2: send bytes
-                    with open(upload_path, "rb") as fp:
-                        send_resp = await client.post(
-                            f"https://api.notion.com/v1/file_uploads/{upload_id}/send",
-                            headers={
-                                "Authorization": f"Bearer {notion_token}",
-                                "Notion-Version": NOTION_VERSION,
-                            },
-                            files={"file": (upload_name, fp, upload_mime)},
-                        )
-                    if send_resp.status_code >= 400:
-                        # Bubble up: caller can fallback to Drive if this is a size-limit error.
-                        raise HTTPException(status_code=send_resp.status_code, detail=send_resp.text)
+    return {"uploads": results}
 
+
+@app.post("/v1/notion/file_uploads_from_data")
+async def notion_file_uploads_from_data(
+    body: dict[str, Any],
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """
+    Upload base64-encoded file bytes to Notion.
+    Intended for files created inside sandbox/code tools when `openaiFileIdRefs` are unavailable.
+    """
+    notion_token = _notion_token_from_request(authorization)
+    files = _inline_files_from_body(body)
+
+    results: list[dict[str, Any]] = []
+    async with httpx.AsyncClient(timeout=45) as client:
+        for f in files:
+            name = f["name"]
+            mime_type = f["mime_type"]
+            tmp_path, _size = _decode_inline_file_to_tempfile(f["data_base64"])
+            cleanup_files = [tmp_path]
+            cleanup_dirs: list[str] = []
+            try:
+                # Reuse PDF/presentation extraction path only when inline payload is a deck.
+                expanded_files, extra_files, extra_dirs = _expand_downloaded_file(tmp_path, name, mime_type)
+                cleanup_files.extend([p for p in extra_files if p != tmp_path])
+                cleanup_dirs.extend(extra_dirs)
+                for item in expanded_files:
+                    upload_name = item["name"]
+                    upload_mime = item["mime_type"]
+                    upload_path = item["path"]
+                    upload_id = await _upload_file_to_notion(client, notion_token, upload_path, upload_name, upload_mime)
                     results.append(
                         {
                             "source_name": name,

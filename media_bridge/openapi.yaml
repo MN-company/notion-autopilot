@@ -37,6 +37,29 @@ components:
           description: Attach files in chat; Action runtime fills this automatically.
       required:
         - openaiFileIdRefs
+    InlineNotionUploadFile:
+      type: object
+      properties:
+        name:
+          type: string
+        mime_type:
+          type: string
+        data_base64:
+          type: string
+          description: Base64 encoded file bytes.
+      required:
+        - name
+        - data_base64
+    InlineNotionUploadRequest:
+      type: object
+      properties:
+        files:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/InlineNotionUploadFile"
+      required:
+        - files
   securitySchemes:
     bearerAuth:
       type: http
@@ -91,6 +114,26 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/DriveUploadRequest"
+      responses:
+        "200":
+          description: OK
+
+  /v1/notion/file_uploads_from_data:
+    post:
+      operationId: notionFileUploadsFromData
+      summary: Upload base64 files to Notion
+      description: >
+        Uploads inline base64 file bytes to Notion and returns `file_upload_id` values.
+        Use this when files exist only in sandbox/code output and not as chat attachments.
+      security:
+        - {}
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InlineNotionUploadRequest"
       responses:
         "200":
           description: OK

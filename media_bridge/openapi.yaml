@@ -81,8 +81,8 @@ paths:
       summary: Upload files to Notion
       description: >
         Uploads files from `openaiFileIdRefs` to Notion and returns `file_upload_id` values.
-        For PDF decks, the bridge auto-detects and crops likely diagram regions
-        (fallback: full-page PNGs) before upload.
+        By default the bridge behaves as an uploader only.
+        Optional PDF/PPTX page expansion can be enabled via `PDF_EXTRACT_MODE=page`.
         If `NOTION_TOKEN` is set on the service, no per-request auth is required.
       security:
         - {}
@@ -104,8 +104,8 @@ paths:
       description: >
         Requires an OAuth access token sent by the Action runtime as `Authorization: Bearer ...`.
         Expects `openaiFileIdRefs` containing file references from the conversation.
-        For PDF decks, the bridge auto-detects and crops likely diagram regions
-        (fallback: full-page PNGs) before upload.
+        By default the bridge behaves as an uploader only.
+        Optional PDF/PPTX page expansion can be enabled via `PDF_EXTRACT_MODE=page`.
       security:
         - bearerAuth: []
       requestBody:

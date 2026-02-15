@@ -112,8 +112,8 @@ Drive fallback policy:
 - Attach returned `public_url` as Notion `type: external`.
 
 Slide decks:
-- If user provides pdf/pptx, let the bridge extract/crop diagrams during upload.
-- If extraction happened in sandbox, upload those generated files using `file_uploads_from_data`.
+- If user asks for diagram crops, do extraction/cropping in sandbox/code first.
+- Then upload generated outputs using `file_uploads_from_data`.
 
 ## Error Handling
 If `/search` returns empty:

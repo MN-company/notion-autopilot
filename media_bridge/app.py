@@ -10,10 +10,8 @@ from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse
 from pathlib import Path
 
-import cv2
 import httpx
 import fitz  # PyMuPDF
-import numpy as np
 from fastapi import FastAPI, Header, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
 
@@ -43,7 +41,7 @@ ALLOWED_DOWNLOAD_HOST_SUFFIXES = {
 MAX_DOWNLOAD_BYTES = int(_env("MAX_DOWNLOAD_BYTES", str(30 * 1024 * 1024)) or str(30 * 1024 * 1024))
 MAX_SLIDE_PAGES = int(_env("MAX_SLIDE_PAGES", "80") or "80")
 SLIDE_RENDER_DPI = int(_env("SLIDE_RENDER_DPI", "150") or "150")
-PDF_EXTRACT_MODE = (_env("PDF_EXTRACT_MODE", "diagram") or "diagram").strip().lower()
+PDF_EXTRACT_MODE = (_env("PDF_EXTRACT_MODE", "none") or "none").strip().lower()
 NOTION_OAUTH_AUTHORIZE_URL = _env("NOTION_OAUTH_AUTHORIZE_URL", "https://api.notion.com/v1/oauth/authorize")
 NOTION_OAUTH_TOKEN_URL = _env("NOTION_OAUTH_TOKEN_URL", "https://api.notion.com/v1/oauth/token")
 NOTION_OAUTH_CLIENT_ID = _env("NOTION_OAUTH_CLIENT_ID", required=False)
@@ -145,125 +143,6 @@ def _render_pdf_to_pngs(pdf_path: str, source_name: str) -> list[dict[str, str]]
         doc.close()
 
 
-def _clamp(v: int, low: int, high: int) -> int:
-    return max(low, min(v, high))
-
-
-def _iou(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> float:
-    ax0, ay0, ax1, ay1 = a
-    bx0, by0, bx1, by1 = b
-    ix0, iy0 = max(ax0, bx0), max(ay0, by0)
-    ix1, iy1 = min(ax1, bx1), min(ay1, by1)
-    iw, ih = max(0, ix1 - ix0), max(0, iy1 - iy0)
-    inter = iw * ih
-    if inter <= 0:
-        return 0.0
-    a_area = max(1, (ax1 - ax0) * (ay1 - ay0))
-    b_area = max(1, (bx1 - bx0) * (by1 - by0))
-    return inter / float(a_area + b_area - inter)
-
-
-def _extract_diagrams_from_pdf(pdf_path: str, source_name: str) -> list[dict[str, str]]:
-    doc = fitz.open(pdf_path)
-    try:
-        if doc.page_count == 0:
-            raise HTTPException(status_code=400, detail="The provided PDF has no pages.")
-        if doc.page_count > MAX_SLIDE_PAGES:
-            raise HTTPException(
-                status_code=413,
-                detail=f"PDF has {doc.page_count} pages, limit is {MAX_SLIDE_PAGES}.",
-            )
-
-        zoom = SLIDE_RENDER_DPI / 72.0
-        matrix = fitz.Matrix(zoom, zoom)
-        base = Path(source_name).stem or "slides"
-        output: list[dict[str, str]] = []
-
-        for page_idx in range(doc.page_count):
-            page = doc.load_page(page_idx)
-            pix = page.get_pixmap(matrix=matrix, alpha=False)
-            h, w, n = pix.height, pix.width, pix.n
-            img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(h, w, n)
-            if n == 4:
-                img = cv2.cvtColor(img, cv2.COLOR_RGBA2RGB)
-            elif n == 1:
-                img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
-
-            gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-            mask = (gray < 245).astype(np.uint8) * 255
-
-            # Remove text areas from candidate mask.
-            page_w = max(1.0, float(page.rect.width))
-            page_h = max(1.0, float(page.rect.height))
-            sx = w / page_w
-            sy = h / page_h
-            blocks = (page.get_text("dict") or {}).get("blocks", [])
-            for block in blocks:
-                if block.get("type") != 0:
-                    continue
-                x0, y0, x1, y1 = block.get("bbox", (0, 0, 0, 0))
-                px0 = _clamp(int(x0 * sx) - 8, 0, w)
-                py0 = _clamp(int(y0 * sy) - 8, 0, h)
-                px1 = _clamp(int(x1 * sx) + 8, 0, w)
-                py1 = _clamp(int(y1 * sy) + 8, 0, h)
-                mask[py0:py1, px0:px1] = 0
-
-            kernel = np.ones((5, 5), np.uint8)
-            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
-            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
-
-            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            page_area = float(w * h)
-            boxes: list[tuple[int, int, int, int]] = []
-            for c in contours:
-                x, y, bw, bh = cv2.boundingRect(c)
-                area = float(bw * bh)
-                ratio = area / page_area
-                if ratio < 0.02 or ratio > 0.90:
-                    continue
-                if bw < 140 or bh < 100:
-                    continue
-                # Ignore header/footer stripes.
-                if y < int(0.04 * h) or (y + bh) > int(0.98 * h):
-                    continue
-                pad_x = max(8, int(0.01 * w))
-                pad_y = max(8, int(0.01 * h))
-                x0 = _clamp(x - pad_x, 0, w)
-                y0 = _clamp(y - pad_y, 0, h)
-                x1 = _clamp(x + bw + pad_x, 0, w)
-                y1 = _clamp(y + bh + pad_y, 0, h)
-                boxes.append((x0, y0, x1, y1))
-
-            # Keep non-overlapping largest regions.
-            boxes = sorted(boxes, key=lambda b: (b[2] - b[0]) * (b[3] - b[1]), reverse=True)
-            kept: list[tuple[int, int, int, int]] = []
-            for b in boxes:
-                if any(_iou(b, k) > 0.45 for k in kept):
-                    continue
-                kept.append(b)
-                if len(kept) >= 6:
-                    break
-
-            for idx, (x0, y0, x1, y1) in enumerate(kept):
-                crop = img[y0:y1, x0:x1]
-                if crop.size == 0:
-                    continue
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as out:
-                    out_path = out.name
-                cv2.imwrite(out_path, cv2.cvtColor(crop, cv2.COLOR_RGB2BGR))
-                output.append(
-                    {
-                        "path": out_path,
-                        "name": f"{base}_p{page_idx + 1:03d}_diagram_{idx + 1:02d}.png",
-                        "mime_type": "image/png",
-                    }
-                )
-
-        return output
-    finally:
-        doc.close()
-
-
 def _convert_presentation_to_pdf(input_path: str) -> tuple[str, str]:
     soffice = shutil.which("soffice") or shutil.which("libreoffice")
     if not soffice:
@@ -308,20 +187,19 @@ def _expand_downloaded_file(
     if _is_pdf(name, mime_type):
         if PDF_EXTRACT_MODE == "page":
             images = _render_pdf_to_pngs(file_path, name)
-        else:
-            images = _extract_diagrams_from_pdf(file_path, name)
-            if not images:
-                # Fallback when no diagram regions are detected.
-                images = _render_pdf_to_pngs(file_path, name)
-        cleanup_files.extend([img["path"] for img in images])
-        return images, cleanup_files, cleanup_dirs
+            cleanup_files.extend([img["path"] for img in images])
+            return images, cleanup_files, cleanup_dirs
+        # Default behavior is no extraction for PDFs.
+        return [{"path": file_path, "name": name, "mime_type": mime_type}], cleanup_files, cleanup_dirs
 
     if _is_presentation(name, mime_type):
-        pdf_path, tmp_dir = _convert_presentation_to_pdf(file_path)
-        cleanup_dirs.append(tmp_dir)
-        images = _render_pdf_to_pngs(pdf_path, name)
-        cleanup_files.extend([img["path"] for img in images])
-        return images, cleanup_files, cleanup_dirs
+        if PDF_EXTRACT_MODE == "page":
+            pdf_path, tmp_dir = _convert_presentation_to_pdf(file_path)
+            cleanup_dirs.append(tmp_dir)
+            images = _render_pdf_to_pngs(pdf_path, name)
+            cleanup_files.extend([img["path"] for img in images])
+            return images, cleanup_files, cleanup_dirs
+        return [{"path": file_path, "name": name, "mime_type": mime_type}], cleanup_files, cleanup_dirs
 
     return [{"path": file_path, "name": name, "mime_type": mime_type}], cleanup_files, cleanup_dirs
 

@@ -4,9 +4,7 @@ GPT Actions can send files to your API as short-lived download URLs (`openaiFile
 
 This small middleware service:
 - Downloads files from `openaiFileIdRefs[*].download_link`
-- Auto-expands slide decks:
-  - `pdf` -> auto-detect and crop diagram regions (fallback: one PNG per page)
-  - `ppt/pptx` -> convert to PDF (if LibreOffice is installed) -> one PNG per slide
+- Optionally expands slide decks only when explicitly enabled (`PDF_EXTRACT_MODE=page`)
 - Uploads them to Notion (Direct Upload) and/or Google Drive
 - Returns IDs/URLs the GPT can embed into Notion pages
 
@@ -26,7 +24,7 @@ Environment variables:
 - `MAX_DOWNLOAD_BYTES` (optional): maximum file size the bridge will download (default: 30 MiB).
 - `MAX_SLIDE_PAGES` (optional): max pages/slides rendered from a deck (default: 80).
 - `SLIDE_RENDER_DPI` (optional): PNG render DPI for slide images (default: 150).
-- `PDF_EXTRACT_MODE` (optional): `diagram` (default) to crop likely diagram regions, or `page` to export full pages only.
+- `PDF_EXTRACT_MODE` (optional): `none` (default) for pure upload behavior; `page` to convert PDF/PPTX to page PNGs.
 - `NOTION_OAUTH_AUTHORIZE_URL` (optional): defaults to `https://api.notion.com/v1/oauth/authorize`
 - `NOTION_OAUTH_TOKEN_URL` (optional): defaults to `https://api.notion.com/v1/oauth/token`
 - `NOTION_OAUTH_CLIENT_ID` (optional): if set, bridge forces this client id during OAuth authorize.

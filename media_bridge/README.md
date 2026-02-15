@@ -29,6 +29,8 @@ Environment variables:
 - `PDF_EXTRACT_MODE` (optional): `diagram` (default) to crop likely diagram regions, or `page` to export full pages only.
 - `NOTION_OAUTH_AUTHORIZE_URL` (optional): defaults to `https://api.notion.com/v1/oauth/authorize`
 - `NOTION_OAUTH_TOKEN_URL` (optional): defaults to `https://api.notion.com/v1/oauth/token`
+- `NOTION_OAUTH_CLIENT_ID` (optional): if set, bridge forces this client id during OAuth authorize.
+- `NOTION_OAUTH_CLIENT_SECRET` (optional): if set with client id, bridge signs token exchange with these credentials.
 - `MAX_INLINE_FILE_BYTES` (optional): max bytes for each base64 inline file upload (default: 8 MiB).
 
 Google Drive:
@@ -58,7 +60,8 @@ Use this when each user must connect their own Notion workspace.
    - Scope: leave empty (Notion does not use OAuth scopes in the same way as Google Drive).
 3. In Notion integration settings, add the redirect URI shown by GPT Actions.
 4. Do not set `NOTION_TOKEN` on Cloud Run for multi-user mode.
-5. The bridge will use each user's bearer token received from GPT Actions.
+5. Recommended: set `NOTION_OAUTH_CLIENT_ID` and `NOTION_OAUTH_CLIENT_SECRET` on Cloud Run.
+6. The bridge will then normalize OAuth token exchange (form-to-JSON + Basic auth) and use each user's Notion bearer token at runtime.
 
 ## Sandbox file upload path
 When a file exists only in sandbox/code output (not as `openaiFileIdRefs`), call:

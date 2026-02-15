@@ -7,7 +7,7 @@ import shutil
 import subprocess
 import tempfile
 from typing import Any
-from urllib.parse import urlencode, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 from pathlib import Path
 
 import cv2
@@ -46,6 +46,8 @@ SLIDE_RENDER_DPI = int(_env("SLIDE_RENDER_DPI", "150") or "150")
 PDF_EXTRACT_MODE = (_env("PDF_EXTRACT_MODE", "diagram") or "diagram").strip().lower()
 NOTION_OAUTH_AUTHORIZE_URL = _env("NOTION_OAUTH_AUTHORIZE_URL", "https://api.notion.com/v1/oauth/authorize")
 NOTION_OAUTH_TOKEN_URL = _env("NOTION_OAUTH_TOKEN_URL", "https://api.notion.com/v1/oauth/token")
+NOTION_OAUTH_CLIENT_ID = _env("NOTION_OAUTH_CLIENT_ID", required=False)
+NOTION_OAUTH_CLIENT_SECRET = _env("NOTION_OAUTH_CLIENT_SECRET", required=False)
 MAX_INLINE_FILE_BYTES = int(_env("MAX_INLINE_FILE_BYTES", str(8 * 1024 * 1024)) or str(8 * 1024 * 1024))
 
 
@@ -453,6 +455,8 @@ async def oauth_notion_authorize(request: Request) -> RedirectResponse:
     params = dict(request.query_params)
     params.setdefault("owner", "user")
     params.setdefault("response_type", "code")
+    if NOTION_OAUTH_CLIENT_ID:
+        params["client_id"] = NOTION_OAUTH_CLIENT_ID
     redirect_to = f"{NOTION_OAUTH_AUTHORIZE_URL}?{urlencode(params)}"
     return RedirectResponse(url=redirect_to, status_code=302)
 
@@ -460,11 +464,29 @@ async def oauth_notion_authorize(request: Request) -> RedirectResponse:
 @app.post("/oauth/notion/token")
 async def oauth_notion_token(request: Request) -> Response:
     body = await request.body()
-    content_type = request.headers.get("content-type", "application/json")
-    forward_headers = {"Content-Type": content_type}
-    auth_header = request.headers.get("authorization")
-    if auth_header:
-        forward_headers["Authorization"] = auth_header
+    content_type = (request.headers.get("content-type") or "application/json").split(";", 1)[0].strip().lower()
+
+    # The GPT OAuth exchange often sends x-www-form-urlencoded; Notion expects JSON.
+    if content_type == "application/x-www-form-urlencoded":
+        parsed = parse_qs(body.decode("utf-8"), keep_blank_values=True)
+        payload = {k: v[-1] for k, v in parsed.items()}
+        body = json.dumps(payload).encode("utf-8")
+        content_type = "application/json"
+
+    forward_headers = {
+        "Content-Type": content_type,
+        "Notion-Version": NOTION_VERSION,
+    }
+
+    if NOTION_OAUTH_CLIENT_ID and NOTION_OAUTH_CLIENT_SECRET:
+        basic = base64.b64encode(f"{NOTION_OAUTH_CLIENT_ID}:{NOTION_OAUTH_CLIENT_SECRET}".encode("utf-8")).decode(
+            "utf-8"
+        )
+        forward_headers["Authorization"] = f"Basic {basic}"
+    else:
+        auth_header = request.headers.get("authorization")
+        if auth_header:
+            forward_headers["Authorization"] = auth_header
 
     async with httpx.AsyncClient(timeout=45) as client:
         token_resp = await client.post(

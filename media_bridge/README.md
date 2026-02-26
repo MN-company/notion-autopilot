@@ -72,3 +72,4 @@ with:
 - `files[].data_base64`
 
 The bridge decodes bytes, applies deck extraction for PDF/PPTX when applicable, and uploads to Notion.
+`data_base64` can be raw base64 or a full data URL (`data:<mime>;base64,...`).

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import json
 import os
 import shutil
@@ -269,10 +270,42 @@ def _inline_files_from_body(body: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _decode_inline_file_to_tempfile(data_base64: str) -> tuple[str, int]:
-    try:
-        raw = base64.b64decode(data_base64, validate=True)
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail="Invalid base64 payload.") from exc
+    payload = data_base64.strip()
+    # Accept data URLs: data:image/png;base64,....
+    if payload.startswith("data:"):
+        comma = payload.find(",")
+        if comma == -1:
+            raise HTTPException(status_code=400, detail="Invalid data URL payload.")
+        payload = payload[comma + 1 :]
+
+    # Some clients may transform '+' into spaces.
+    payload = payload.replace(" ", "+")
+    # Remove line breaks or other whitespace.
+    payload = "".join(payload.split())
+
+    if "..." in payload:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid base64 payload: appears truncated (contains '...').",
+        )
+
+    # Try standard and urlsafe alphabets with padding normalization.
+    candidates = [payload, payload.replace("-", "+").replace("_", "/")]
+    raw: bytes | None = None
+    for cand in candidates:
+        if not cand:
+            continue
+        pad = (-len(cand)) % 4
+        if pad:
+            cand = cand + ("=" * pad)
+        try:
+            raw = base64.b64decode(cand, validate=False)
+            break
+        except (ValueError, binascii.Error):
+            continue
+
+    if raw is None:
+        raise HTTPException(status_code=400, detail="Invalid base64 payload.")
     size = len(raw)
     if size == 0:
         raise HTTPException(status_code=400, detail="Inline file is empty.")
